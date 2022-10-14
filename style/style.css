@@ -11,7 +11,7 @@
 }
 
 body {
-  font-size: 2rem;
+  font-size: 3rem;
   font-family: 'Hachi Maru Pop', cursive;
 }
 
@@ -30,7 +30,7 @@ body {
 .game-board {
   display: grid;
   grid-template-columns: repeat(3, 100px);
-  gap: 1rem;
+  gap: 0.5rem;
   background-color: var(--clr-s-violet);
 }
 
