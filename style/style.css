@@ -1,3 +1,9 @@
+:root {
+  --clr-s-yellow: #ebebff;
+  --clr-s-violet: #b3ad92;
+  --clr-v-dark-cyan: #03444d;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -16,7 +22,7 @@ body {
 }
 
 .wrapper {
-  background-color: antiquewhite;
+  background-color: var(--clr-s-yellow);
   width: 100vw;
   height: 100vh;
 }
@@ -25,9 +31,11 @@ body {
   display: grid;
   grid-template-columns: repeat(3, 100px);
   gap: 1rem;
+  background-color: var(--clr-s-violet);
 }
 
 .cell {
-  background-color: aquamarine;
+  color: var(--clr-v-dark-cyan);
+  background-color: var(--clr-s-yellow);
   height: 100px;
 }
