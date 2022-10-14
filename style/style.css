@@ -4,10 +4,18 @@
   box-sizing: border-box;
 }
 
-.wrapper {
+body {
+  font-size: 2rem;
+  font-family: 'Hachi Maru Pop', cursive;
+}
+
+.flex {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.wrapper {
   background-color: antiquewhite;
   width: 100vw;
   height: 100vh;
