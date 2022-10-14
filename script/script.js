@@ -1,8 +1,8 @@
-const gameBoard = (function() {
-  const board = [];
-})();
+const gameBoard = (() => {
+  const board = []
+})()
 
-const createPlayer = (name, char) => {  
+const createPlayer = (name, char) => {
   const player = {
     name,
     char,
