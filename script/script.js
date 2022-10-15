@@ -70,3 +70,9 @@ const createPlayer = (name, char) => {
 
   return { play }
 }
+
+const displayControl = (() => {
+  const cells = Array.from(document.querySelectorAll('[data-cell]'))
+
+  cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
+})()
