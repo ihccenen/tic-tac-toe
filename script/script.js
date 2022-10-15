@@ -49,6 +49,7 @@ const gameFlow = (() => {
     else players.O.play(index)
 
     event.target.textContent = gameBoard.board[index]
+    event.target.style.cursor = 'auto'
     _history.turnCount++
     _checkEnd()
   }
@@ -92,3 +93,8 @@ const displayControl = (() => {
 
   cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
 })()
+
+const players = {
+  X: createPlayer('X', 'X'),
+  O: createPlayer('O', 'O'),
+}
