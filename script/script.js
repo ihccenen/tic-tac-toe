@@ -61,6 +61,18 @@ const gameFlow = (() => {
 
     if (rowFiltered.length > 0) _history.result = rowFiltered.join('')[0]
     else if (_history.turnCount === 9) _history.result = 'draw'
+
+    checkResult()
+  }
+
+  const checkResult = () => {
+    if (_history.result === 'draw') {
+      displayControl.announce.textContent = 'Draw'
+    } else if (_history.result !== false) {
+      displayControl.announce.textContent = `Winner: ${
+        players[_history.result].name
+      }`
+    }
   }
 
   return { takeTurn }
@@ -85,16 +97,19 @@ const createPlayer = (name, char) => {
     }, [])
   }
 
-  return { play }
+  return { name, play }
 }
 
 const displayControl = (() => {
   const cells = Array.from(document.querySelectorAll('[data-cell]'))
+  const announce = document.querySelector('[data-announce]')
 
   cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
+
+  return { announce }
 })()
 
 const players = {
-  X: createPlayer('X', 'X'),
-  O: createPlayer('O', 'O'),
+  X: createPlayer('player1', 'X'),
+  O: createPlayer('player2', 'O'),
 }
