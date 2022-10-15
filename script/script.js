@@ -19,4 +19,19 @@ const createPlayer = (name, char) => {
     name,
     char,
   }
+
+  const play = pos => {
+    gameBoard.board[pos] = _player.char
+
+    // change row index to player character
+    gameBoard.rowCombinations.reduce((prev, curr) => {
+      if (curr.includes(pos)) curr.splice(curr.indexOf(pos), 1, _player.char)
+
+      prev.push(curr)
+
+      return prev
+    }, [])
+  }
+
+  return { play }
 }
