@@ -34,6 +34,16 @@ const gameFlow = (() => {
 
     event.target.textContent = gameBoard.board[index]
     _history.turnCount++
+    _checkEnd()
+  }
+
+  const _checkEnd = () => {
+    const rowFiltered = gameBoard.rowCombinations
+      .map(subArr => subArr.join(''))
+      .filter(str => /XXX/.test(str) || /OOO/.test(str))
+
+    if (rowFiltered.length > 0) _history.result = rowFiltered.join('')[0]
+    else if (_history.turnCount === 9) _history.result = 'draw'
   }
 
   return { takeTurn }
