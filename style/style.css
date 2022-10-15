@@ -38,4 +38,6 @@ body {
   color: var(--clr-v-dark-cyan);
   background-color: var(--clr-s-yellow);
   height: 100px;
+  cursor: pointer;
+  user-select: none;
 }
