@@ -47,6 +47,14 @@ button:hover {
   opacity: 0.9;
 }
 
+.top {
+  gap: 3rem;
+}
+
+.change-btn {
+  padding: 0.5em;
+}
+
 .game-board {
   display: grid;
   grid-template-columns: repeat(3, 100px);
