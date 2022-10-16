@@ -37,11 +37,18 @@
       </div>
       <div class="announce" data-announce="">&nbsp;</div>
       <button type="button" data-button="restart">Restart</button>
-      <dialog data-modal="">
-        <form action="#" method="get" data-form="">
-          <label for="name">Name</label>
-          <input type="text" name="name" id="name" data-input="name" />
-          <fieldset>
+      <dialog class="modal" data-modal="">
+        <form action="#" method="get" class="flex" data-form="">
+          <div class="name-input flex">
+            <label for="name">Name</label>
+            <input
+              type="text"
+              name="name"
+              id="name"
+              data-input="name"
+              required />
+          </div>
+          <fieldset class="flex">
             <legend>Character</legend>
             <select name="character" id="character" data-select="">
               <option value="x">X</option>
