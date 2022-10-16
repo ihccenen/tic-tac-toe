@@ -51,6 +51,42 @@ button:hover {
   gap: 3rem;
 }
 
+:modal {
+  background-color: var(--clr-p-yellow);
+  border: none;
+  border-radius: 1em;
+  padding: 2em;
+  margin: auto;
+}
+
+form {
+  flex-direction: column;
+  gap: 2em;
+}
+
+.name-input {
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.name-input input {
+  font-size: 1.4rem;
+  padding: 0.4em;
+  border-radius: 0.2em;
+  border: 1px solid var(--clr-v-dark-cyan);
+}
+
+fieldset {
+  justify-content: center;
+  border: none;
+}
+
+select {
+  font-size: 1.4rem;
+  padding: 0.4em 1em;
+  margin: 1em;
+}
+
 .change-btn {
   padding: 0.5em;
 }
