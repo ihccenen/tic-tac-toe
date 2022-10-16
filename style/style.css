@@ -1,7 +1,9 @@
 :root {
   --clr-s-yellow: #ebebff;
+  --clr-p-yellow: #fffbeb;
   --clr-s-violet: #b3ad92;
   --clr-v-dark-cyan: #03444d;
+  --clr-d-blue: #3f3f66;
 }
 
 * {
@@ -33,8 +35,8 @@ body {
 button {
   font-family: 'Montserrat', cursive;
   font-size: 1.2rem;
-  color: #fffbeb;
-  background-color: #3f3f66;
+  color: var(--clr-p-yellow);
+  background-color: var(--clr-d-blue);
   padding: 0.5em 5rem;
   border-radius: 1em;
   border: none;
