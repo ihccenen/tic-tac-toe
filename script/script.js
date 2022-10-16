@@ -25,7 +25,10 @@ const gameBoard = (() => {
       [0, 4, 8],
       [2, 4, 6]
     )
-    displayControl.cells.forEach(cell => (cell.textContent = ''))
+    displayControl.cells.forEach(cell => {
+      cell.textContent = ''
+      cell.style.cursor = 'pointer'
+    })
     displayControl.announce.textContent = '\xa0'
     gameFlow.history.turnCount = 0
     gameFlow.history.result = false
