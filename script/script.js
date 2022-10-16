@@ -97,19 +97,23 @@ const createPlayer = (name, char) => {
     }, [])
   }
 
-  return { name, play }
+  return { name, char, play }
 }
-
-const displayControl = (() => {
-  const cells = Array.from(document.querySelectorAll('[data-cell]'))
-  const announce = document.querySelector('[data-announce]')
-
-  cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
-
-  return { announce }
-})()
 
 const players = {
   X: createPlayer('player1', 'X'),
   O: createPlayer('player2', 'O'),
 }
+
+const displayControl = (() => {
+  const cells = Array.from(document.querySelectorAll('[data-cell]'))
+  const playerName = document.querySelector('[data-name]')
+  const playerChar = document.querySelector('[data-char]')
+  const announce = document.querySelector('[data-announce]')
+
+  cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
+  playerName.textContent = players.X.name
+  playerChar.textContent = players.X.char
+
+  return { announce }
+})()
