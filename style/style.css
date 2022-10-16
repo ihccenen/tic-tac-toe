@@ -30,6 +30,21 @@ body {
   height: 100vh;
 }
 
+button {
+  font-family: 'Montserrat', cursive;
+  font-size: 1.2rem;
+  color: #fffbeb;
+  background-color: #3f3f66;
+  padding: 0.5em 5rem;
+  border-radius: 1em;
+  border: none;
+  cursor: pointer;
+}
+
+button:hover {
+  opacity: 0.9;
+}
+
 .game-board {
   display: grid;
   grid-template-columns: repeat(3, 100px);
