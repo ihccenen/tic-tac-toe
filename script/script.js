@@ -114,14 +114,36 @@ const players = {
 }
 
 const displayControl = (() => {
+  const openModal = () => {
+    modal.showModal()
+  }
+  const changePlayer = event => {
+    event.preventDefault()
+    const name = document.querySelector('[data-input="name"]')
+    const char = document.querySelector('[data-select]')
+    const newPlayer = createPlayer(name.value, char.value.toUpperCase())
+
+    players[newPlayer.char] = newPlayer
+    playerName.textContent = newPlayer.name
+    playerChar.textContent = newPlayer.char
+    form.reset()
+    modal.close()
+    gameBoard.restart()
+  }
+
   const cells = Array.from(document.querySelectorAll('[data-cell]'))
   const playerName = document.querySelector('[data-name]')
   const playerChar = document.querySelector('[data-char]')
   const announce = document.querySelector('[data-announce]')
+  const changeBtn = document.querySelector('[data-button="change"]')
+  const modal = document.querySelector('[data-modal]')
+  const form = document.querySelector('[data-form]')
   const restart = document.querySelector('[data-button="restart"]')
 
   cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
   restart.addEventListener('click', gameBoard.restart)
+  changeBtn.addEventListener('click', openModal)
+  form.addEventListener('submit', changePlayer)
   playerName.textContent = players.X.name
   playerChar.textContent = players.X.char
 
