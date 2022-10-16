@@ -55,7 +55,7 @@ button:hover {
   background-color: var(--clr-p-yellow);
   border: none;
   border-radius: 1em;
-  padding: 2em;
+  padding: 1em 2em;
   margin: auto;
 }
 
