@@ -25,13 +25,17 @@ const gameBoard = (() => {
       [0, 4, 8],
       [2, 4, 6]
     )
+    displayControl.cells.forEach(cell => (cell.textContent = ''))
+    displayControl.announce.textContent = '\xa0'
+    gameFlow.history.turnCount = 0
+    gameFlow.history.result = false
   }
 
   return { board, rowCombinations, restart }
 })()
 
 const gameFlow = (() => {
-  const _history = {
+  const history = {
     turnCount: 0,
     result: false,
   }
@@ -39,18 +43,18 @@ const gameFlow = (() => {
   const takeTurn = event => {
     const index = +event.target.dataset.cell
     const notValidTurn =
-      gameBoard.board[index] !== undefined || _history.result !== false
+      gameBoard.board[index] !== undefined || history.result !== false
 
     if (notValidTurn) return
 
-    const itsEven = _history.turnCount % 2 === 0
+    const itsEven = history.turnCount % 2 === 0
 
     if (itsEven) players.X.play(index)
     else players.O.play(index)
 
     event.target.textContent = gameBoard.board[index]
     event.target.style.cursor = 'auto'
-    _history.turnCount++
+    history.turnCount++
     _checkEnd()
   }
 
@@ -59,23 +63,24 @@ const gameFlow = (() => {
       .map(subArr => subArr.join(''))
       .filter(str => /XXX/.test(str) || /OOO/.test(str))
 
-    if (rowFiltered.length > 0) _history.result = rowFiltered.join('')[0]
-    else if (_history.turnCount === 9) _history.result = 'draw'
+    if (rowFiltered.length > 0) history.result = rowFiltered.join('')[0]
 
     checkResult()
   }
 
   const checkResult = () => {
-    if (_history.result === 'draw') {
-      displayControl.announce.textContent = 'Draw'
-    } else if (_history.result !== false) {
+    if (history.result !== false) {
       displayControl.announce.textContent = `Winner: ${
-        players[_history.result].name
+        players[history.result].name
       }`
+
+      return
+    } else if (history.turnCount === 9) {
+      displayControl.announce.textContent = 'Draw'
     }
   }
 
-  return { takeTurn }
+  return { history, takeTurn }
 })()
 
 const createPlayer = (name, char) => {
@@ -110,10 +115,12 @@ const displayControl = (() => {
   const playerName = document.querySelector('[data-name]')
   const playerChar = document.querySelector('[data-char]')
   const announce = document.querySelector('[data-announce]')
+  const restart = document.querySelector('[data-button="restart"]')
 
   cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
+  restart.addEventListener('click', gameBoard.restart)
   playerName.textContent = players.X.name
   playerChar.textContent = players.X.char
 
-  return { announce }
+  return { announce, cells }
 })()
