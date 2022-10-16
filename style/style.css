@@ -55,6 +55,7 @@ button:hover {
 }
 
 .cell {
+  font-family: 'Hachi Maru Pop', cursive;
   font-size: 3rem;
   color: var(--clr-v-dark-cyan);
   background-color: var(--clr-s-yellow);
