@@ -9,13 +9,16 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Hachi+Maru+Pop&display=swap"
-      rel="stylesheet"
-    />
+      rel="stylesheet" />
     <link rel="stylesheet" href="./style/style.css" />
     <script src="./script/script.js" defer></script>
   </head>
   <body>
     <div class="wrapper flex">
+      <div>
+        <div>Name: <span data-name=""></span></div>
+        <div>Character: <span data-char=""></span></div>
+      </div>
       <div class="game-board">
         <div class="cell flex" data-cell="0"></div>
         <div class="cell flex" data-cell="1"></div>
@@ -27,7 +30,7 @@
         <div class="cell flex" data-cell="7"></div>
         <div class="cell flex" data-cell="8"></div>
       </div>
-      <div class="announce" data-announce>&nbsp;</div>
+      <div class="announce" data-announce="">&nbsp;</div>
     </div>
   </body>
 </html>
