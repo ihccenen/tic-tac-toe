@@ -55,22 +55,20 @@ const gameFlow = (() => {
     if (itsEven && players.X.auto === false) players.X.play(index)
     else if (players.O.auto === false) players.O.play(index)
 
-    event.target.style.cursor = 'auto'
     automaticPlay.autoCheck()
-    _checkEnd()
   }
 
-  const _checkEnd = () => {
+  const checkEnd = () => {
     const rowFiltered = gameBoard.rowCombinations
       .map(subArr => subArr.join(''))
       .filter(str => /XXX/.test(str) || /OOO/.test(str))
 
     if (rowFiltered.length > 0) history.result = rowFiltered.join('')[0]
 
-    checkResult()
+    _checkResult()
   }
 
-  const checkResult = () => {
+  const _checkResult = () => {
     if (history.result !== false) {
       displayControl.announce.textContent = `Winner: ${
         players[history.result].name
@@ -82,13 +80,14 @@ const gameFlow = (() => {
     }
   }
 
-  return { history, takeTurn }
+  return { history, takeTurn, checkEnd }
 })()
 
 const createPlayer = (name, char, auto) => {
   const play = pos => {
     gameBoard.board[pos] = char
     displayControl.cells[pos].textContent = gameBoard.board[pos]
+    displayControl.cells[pos].style.cursor = 'auto'
     gameFlow.history.turnCount++
 
     // change row index to player character
@@ -99,6 +98,8 @@ const createPlayer = (name, char, auto) => {
 
       return prev
     }, [])
+
+    gameFlow.checkEnd()
   }
 
   return { name, char, auto, play }
@@ -166,7 +167,7 @@ const automaticPlay = (() => {
       })
 
     // check if the game already ended
-    if (avaibleBoard.length === 0) return
+    if (gameFlow.history.result !== false) return
 
     const randomIndex = Math.floor(Math.random() * avaibleBoard.length)
 
