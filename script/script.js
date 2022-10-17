@@ -52,12 +52,11 @@ const gameFlow = (() => {
 
     const itsEven = history.turnCount % 2 === 0
 
-    if (itsEven) players.X.play(index)
-    else players.O.play(index)
+    if (itsEven && players.X.auto === false) players.X.play(index)
+    else if (players.O.auto === false) players.O.play(index)
 
-    event.target.textContent = gameBoard.board[index]
     event.target.style.cursor = 'auto'
-    history.turnCount++
+    automaticPlay.autoCheck()
     _checkEnd()
   }
 
@@ -86,18 +85,15 @@ const gameFlow = (() => {
   return { history, takeTurn }
 })()
 
-const createPlayer = (name, char) => {
-  const _player = {
-    name,
-    char,
-  }
-
+const createPlayer = (name, char, auto) => {
   const play = pos => {
-    gameBoard.board[pos] = _player.char
+    gameBoard.board[pos] = char
+    displayControl.cells[pos].textContent = gameBoard.board[pos]
+    gameFlow.history.turnCount++
 
     // change row index to player character
     gameBoard.rowCombinations.reduce((prev, curr) => {
-      if (curr.includes(pos)) curr.splice(curr.indexOf(pos), 1, _player.char)
+      if (curr.includes(pos)) curr.splice(curr.indexOf(pos), 1, char)
 
       prev.push(curr)
 
@@ -105,12 +101,12 @@ const createPlayer = (name, char) => {
     }, [])
   }
 
-  return { name, char, play }
+  return { name, char, auto, play }
 }
 
 const players = {
-  X: createPlayer('player1', 'X'),
-  O: createPlayer('player2', 'O'),
+  X: createPlayer('player1', 'X', false),
+  O: createPlayer('CPU', 'O', true),
 }
 
 const displayControl = (() => {
@@ -121,7 +117,12 @@ const displayControl = (() => {
     event.preventDefault()
     const name = document.querySelector('[data-input="name"]')
     const char = document.querySelector('[data-select]')
-    const newPlayer = createPlayer(name.value, char.value.toUpperCase())
+    const newPlayer = createPlayer(name.value, char.value.toUpperCase(), false)
+
+    for (let key in players) {
+      if (key === newPlayer.char) players[key] = newPlayer
+      else players[key] = createPlayer('CPU', key, true)
+    }
 
     players[newPlayer.char] = newPlayer
     playerName.textContent = newPlayer.name
@@ -129,6 +130,7 @@ const displayControl = (() => {
     form.reset()
     modal.close()
     gameBoard.restart()
+    automaticPlay.autoCheck()
   }
 
   const cells = Array.from(document.querySelectorAll('[data-cell]'))
@@ -148,4 +150,36 @@ const displayControl = (() => {
   playerChar.textContent = players.X.char
 
   return { announce, cells }
+})()
+
+const automaticPlay = (() => {
+  const _play = char => {
+    const avaibleBoard = []
+
+    gameBoard.rowCombinations
+      .flat()
+      .filter(item => isFinite(item))
+      .map(item => {
+        if (avaibleBoard.includes(item)) return
+
+        avaibleBoard.push(item)
+      })
+
+    // check if the game already ended
+    if (avaibleBoard.length === 0) return
+
+    const randomIndex = Math.floor(Math.random() * avaibleBoard.length)
+
+    players[char].play(avaibleBoard[randomIndex])
+  }
+
+  const autoCheck = () => {
+    const itsEven = gameFlow.history.turnCount % 2 === 0
+    if (players.X.auto === true && itsEven) _play('X')
+    else if (players.O.auto === true && !itsEven) _play('O')
+  }
+
+  autoCheck()
+
+  return { autoCheck }
 })()
