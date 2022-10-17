@@ -32,6 +32,7 @@ const gameBoard = (() => {
     displayControl.announce.textContent = '\xa0'
     gameFlow.history.turnCount = 0
     gameFlow.history.result = false
+    automaticPlay.autoCheck()
   }
 
   return { board, rowCombinations, restart }
@@ -56,31 +57,13 @@ const gameFlow = (() => {
     else if (players.O.auto === false) players.O.play(index)
 
     automaticPlay.autoCheck()
+
+    // display result if someone won or if it's a draw
+    if (history.result !== false)
+      displayControl.announce.textContent = history.result
   }
 
-  const checkEnd = () => {
-    const rowFiltered = gameBoard.rowCombinations
-      .map(subArr => subArr.join(''))
-      .filter(str => /XXX/.test(str) || /OOO/.test(str))
-
-    if (rowFiltered.length > 0) history.result = rowFiltered.join('')[0]
-
-    _checkResult()
-  }
-
-  const _checkResult = () => {
-    if (history.result !== false) {
-      displayControl.announce.textContent = `Winner: ${
-        players[history.result].name
-      }`
-
-      return
-    } else if (history.turnCount === 9) {
-      displayControl.announce.textContent = 'Draw'
-    }
-  }
-
-  return { history, takeTurn, checkEnd }
+  return { history, takeTurn }
 })()
 
 const createPlayer = (name, char, auto) => {
@@ -90,7 +73,7 @@ const createPlayer = (name, char, auto) => {
     displayControl.cells[pos].style.cursor = 'auto'
     gameFlow.history.turnCount++
 
-    // change row index to player character
+    // change row number that equals to pos
     gameBoard.rowCombinations.reduce((prev, curr) => {
       if (curr.includes(pos)) curr.splice(curr.indexOf(pos), 1, char)
 
@@ -99,7 +82,26 @@ const createPlayer = (name, char, auto) => {
       return prev
     }, [])
 
-    gameFlow.checkEnd()
+    checkEnd()
+  }
+
+  // check for a three row win or if it's round 9 and no one won yet
+  const checkEnd = () => {
+    const win = new RegExp(char.repeat(3))
+    const threeRow = gameBoard.rowCombinations
+      .filter(subArr => win.test(subArr.join('')))
+      .flat()
+      .join('')
+
+    if (win.test(threeRow)) {
+      gameFlow.history.result = `Winner: ${name}`
+
+      return
+    }
+
+    if (gameFlow.history.turnCount === 9) {
+      gameFlow.history.result = 'Draw'
+    }
   }
 
   return { name, char, auto, play }
@@ -114,6 +116,7 @@ const displayControl = (() => {
   const openModal = () => {
     modal.showModal()
   }
+
   const changePlayer = event => {
     event.preventDefault()
     const name = document.querySelector('[data-input="name"]')
