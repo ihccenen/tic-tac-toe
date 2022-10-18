@@ -1,30 +1,8 @@
 const gameBoard = (() => {
-  const board = []
-  const rowCombinations = [
-    [0, 1, 2],
-    [3, 4, 5],
-    [6, 7, 8],
-    [0, 3, 6],
-    [1, 4, 7],
-    [2, 5, 8],
-    [0, 4, 8],
-    [2, 4, 6],
-  ]
+  const board = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
   const restart = () => {
-    board.splice(0)
-    rowCombinations.splice(
-      0,
-      8,
-      [0, 1, 2],
-      [3, 4, 5],
-      [6, 7, 8],
-      [0, 3, 6],
-      [1, 4, 7],
-      [2, 5, 8],
-      [0, 4, 8],
-      [2, 4, 6]
-    )
+    board.splice(0, board.length, 0, 1, 2, 3, 4, 5, 6, 7, 8)
     displayControl.cells.forEach(cell => {
       cell.textContent = ''
       cell.style.cursor = 'pointer'
@@ -35,7 +13,7 @@ const gameBoard = (() => {
     automaticPlay.autoCheck()
   }
 
-  return { board, rowCombinations, restart }
+  return { board, restart }
 })()
 
 const gameFlow = (() => {
@@ -47,7 +25,7 @@ const gameFlow = (() => {
   const takeTurn = event => {
     const index = +event.target.dataset.cell
     const notValidTurn =
-      gameBoard.board[index] !== undefined || history.result !== false
+      isNaN(gameBoard.board[index]) || history.result !== false
 
     if (notValidTurn) return
 
@@ -73,35 +51,29 @@ const createPlayer = (name, char, auto) => {
     displayControl.cells[pos].style.cursor = 'auto'
     gameFlow.history.turnCount++
 
-    // change row number that equals to pos
-    gameBoard.rowCombinations.reduce((prev, curr) => {
-      if (curr.includes(pos)) curr.splice(curr.indexOf(pos), 1, char)
-
-      prev.push(curr)
-
-      return prev
-    }, [])
-
-    checkEnd()
+    _checkEnd()
   }
 
-  // check for a three row win or if it's round 9 and no one won yet
-  const checkEnd = () => {
-    const win = new RegExp(char.repeat(3))
-    const threeRow = gameBoard.rowCombinations
-      .filter(subArr => win.test(subArr.join('')))
-      .flat()
-      .join('')
-
-    if (win.test(threeRow)) {
-      gameFlow.history.result = `Winner: ${name}`
-
-      return
+  const _checkEnd = () => {
+    const threeRow = {
+      horizontal: new RegExp(`^${char}{3}|.{3}${char}{3}.{3}|${char}{3}$`),
+      vertical: new RegExp(
+        `(${char}.{2}){3}|(.{1}${char}.{1}){3}|(.{2}${char}){3}`
+      ),
+      diagonal: new RegExp(
+        `(${char}.{3}){2}${char}|.{2}${char}.{1}${char}.{1}${char}.{2}`
+      ),
     }
 
-    if (gameFlow.history.turnCount === 9) {
-      gameFlow.history.result = 'Draw'
+    for (let regex in threeRow) {
+      if (threeRow[regex].test(gameBoard.board.join(''))) {
+        gameFlow.history.result = `Winner: ${name}`
+
+        return
+      }
     }
+
+    if (gameFlow.history.turnCount === 9) gameFlow.history.result = 'Draw'
   }
 
   return { name, char, auto, play }
@@ -158,16 +130,7 @@ const displayControl = (() => {
 
 const automaticPlay = (() => {
   const _play = char => {
-    const avaibleBoard = []
-
-    gameBoard.rowCombinations
-      .flat()
-      .filter(item => isFinite(item))
-      .map(item => {
-        if (avaibleBoard.includes(item)) return
-
-        avaibleBoard.push(item)
-      })
+    const avaibleBoard = gameBoard.board.filter(item => isFinite(item))
 
     // check if the game already ended
     if (gameFlow.history.result !== false) return
