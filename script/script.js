@@ -1,90 +1,201 @@
 const gameBoard = (() => {
   const board = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 
-  const restart = () => {
+  const resetGame = () => {
     board.splice(0, board.length, 0, 1, 2, 3, 4, 5, 6, 7, 8)
-    displayControl.cells.forEach(cell => {
-      cell.textContent = ''
-      cell.style.cursor = 'pointer'
-    })
-    displayControl.announce.textContent = '\xa0'
-    gameFlow.history.turnCount = 0
-    gameFlow.history.result = false
-    automaticPlay.autoCheck()
+    displayControl.resetDisplay()
+    gameFlow.resetHistory()
+    gameFlow.checkAutoPlay()
   }
 
-  return { board, restart }
+  return { board, resetGame }
 })()
 
 const gameFlow = (() => {
   const history = {
+    playerTurn: 'X',
     turnCount: 0,
     result: false,
   }
 
   const takeTurn = event => {
     const index = +event.target.dataset.cell
-    const notValidTurn =
+    // check if the cell can be played and theres no result
+    const invalidTurn =
       isNaN(gameBoard.board[index]) || history.result !== false
 
-    if (notValidTurn) return
+    if (invalidTurn) return
 
-    const itsEven = history.turnCount % 2 === 0
+    players[history.playerTurn].play(index)
 
-    if (itsEven && players.X.auto === false) players.X.play(index)
-    else if (players.O.auto === false) players.O.play(index)
+    // check if its turn 9 and no one won yet to set result to draw
+    if (history.turnCount === 9 && history.result === false) {
+      history.result = 'Draw'
+      displayControl.showResult()
+      return
+    }
 
-    automaticPlay.autoCheck()
-
-    // display result if someone won or if it's a draw
-    if (history.result !== false)
-      displayControl.announce.textContent = history.result
+    // check which players is set to auto
+    checkAutoPlay()
   }
 
-  return { history, takeTurn }
+  const checkAutoPlay = () => {
+    if (players.X.auto && history.playerTurn === 'X') _autoPlay('X')
+    else if (players.O.auto && history.playerTurn === 'O') _autoPlay('O')
+  }
+
+  const _autoPlay = char => {
+    const depth = 9 - history.turnCount
+    const isMaximizingPlayer = char === 'X' ? true : false
+    const index = _minimax(gameBoard.board, depth, isMaximizingPlayer)
+
+    players[char].play(index.index)
+  }
+
+  const _minimax = (node, depth, maximizingPlayer) => {
+    if (checkWin('X', node)) return { score: 1 }
+    else if (checkWin('O', node)) return { score: -1 }
+    else if (depth === 0) return { score: 0 }
+
+    const availableIndex = node.filter(item => isFinite(item))
+    const allPlays = []
+
+    // test all possible plays with the available index and add the best ones to allPlays
+    for (let index of availableIndex) {
+      let result = null
+
+      // set char to X if maximizing player, otherwise O
+      const char = maximizingPlayer ? 'X' : 'O'
+      node[index] = char
+
+      if (maximizingPlayer) {
+        result = _minimax(node, depth - 1, false)
+      } else {
+        result = _minimax(node, depth - 1, true)
+      }
+
+      allPlays.push({ index: index, score: result.score })
+
+      // reset cell to initial index
+      node[index] = index
+    }
+
+    let bestPlay = null
+
+    if (maximizingPlayer) {
+      let value = -Infinity
+
+      for (let i = 0; i < allPlays.length; i++) {
+        if (allPlays[i].score > value) {
+          value = allPlays[i].score
+          bestPlay = i
+        }
+      }
+    } else {
+      let value = Infinity
+
+      for (let i = 0; i < allPlays.length; i++) {
+        if (allPlays[i].score < value) {
+          value = allPlays[i].score
+          bestPlay = i
+        }
+      }
+    }
+
+    return allPlays[bestPlay]
+  }
+
+  const changePlayerTurn = () => {
+    if (history.playerTurn === 'X') history.playerTurn = 'O'
+    else history.playerTurn = 'X'
+  }
+
+  const checkWin = (char, board) => {
+    // check horizontals wins
+    if (
+      (board[0] === char && board[1] === char && board[2] === char) ||
+      (board[3] === char && board[4] === char && board[5] === char) ||
+      (board[6] === char && board[7] === char && board[8] === char)
+    ) {
+      return true
+    }
+    // check verticals wins
+    else if (
+      (board[0] === char && board[3] === char && board[6] === char) ||
+      (board[1] === char && board[4] === char && board[7] === char) ||
+      (board[2] === char && board[5] === char && board[8] === char)
+    ) {
+      return true
+    }
+    // check diagonals wins
+    else if (
+      (board[0] === char && board[4] === char && board[8] === char) ||
+      (board[2] === char && board[4] === char && board[6] === char)
+    ) {
+      return true
+    }
+
+    // if none pass the conditions return false
+    return false
+  }
+
+  const resetHistory = () => {
+    history.playerTurn = 'X'
+    history.turnCount = 0
+    history.result = false
+  }
+
+  return {
+    history,
+    takeTurn,
+    resetHistory,
+    checkAutoPlay,
+    changePlayerTurn,
+    checkWin,
+  }
 })()
 
 const createPlayer = (name, char, auto) => {
   const play = pos => {
     gameBoard.board[pos] = char
-    displayControl.cells[pos].textContent = gameBoard.board[pos]
-    displayControl.cells[pos].style.cursor = 'auto'
+    displayControl.showCell(char, pos)
     gameFlow.history.turnCount++
+    console.log(gameFlow.history.turnCount)
+    gameFlow.changePlayerTurn()
 
-    _checkEnd()
-  }
-
-  const _checkEnd = () => {
-    const threeRow = {
-      horizontal: new RegExp(`^${char}{3}|.{3}${char}{3}.{3}|${char}{3}$`),
-      vertical: new RegExp(
-        `(${char}.{2}){3}|(.{1}${char}.{1}){3}|(.{2}${char}){3}`
-      ),
-      diagonal: new RegExp(
-        `(${char}.{3}){2}${char}|.{2}${char}.{1}${char}.{1}${char}.{2}`
-      ),
+    if (gameFlow.checkWin(char, gameBoard.board)) {
+      gameFlow.history.result = `Winner: ${name}`
+      displayControl.showResult(gameFlow.history.result)
     }
-
-    for (let regex in threeRow) {
-      if (threeRow[regex].test(gameBoard.board.join(''))) {
-        gameFlow.history.result = `Winner: ${name}`
-
-        return
-      }
-    }
-
-    if (gameFlow.history.turnCount === 9) gameFlow.history.result = 'Draw'
   }
 
   return { name, char, auto, play }
 }
 
 const players = {
-  X: createPlayer('player1', 'X', false),
+  X: createPlayer('player', 'X', false),
   O: createPlayer('CPU', 'O', true),
 }
 
 const displayControl = (() => {
+  const showCell = (char, pos) => {
+    cells[pos].textContent = char
+    cells[pos].style.cursor = 'auto'
+  }
+
+  const showResult = () => {
+    announce.textContent = gameFlow.history.result
+  }
+
+  const resetDisplay = () => {
+    cells.forEach(cell => {
+      cell.textContent = ''
+      cell.style.cursor = 'pointer'
+    })
+
+    announce.textContent = '\xa0'
+  }
+
   const openModal = () => {
     modal.showModal()
   }
@@ -105,8 +216,7 @@ const displayControl = (() => {
     playerChar.textContent = newPlayer.char
     form.reset()
     modal.close()
-    gameBoard.restart()
-    automaticPlay.autoCheck()
+    gameBoard.resetGame()
   }
 
   const cells = Array.from(document.querySelectorAll('[data-cell]'))
@@ -119,34 +229,11 @@ const displayControl = (() => {
   const restart = document.querySelector('[data-button="restart"]')
 
   cells.forEach(cell => cell.addEventListener('click', gameFlow.takeTurn))
-  restart.addEventListener('click', gameBoard.restart)
+  restart.addEventListener('click', gameBoard.resetGame)
   changeBtn.addEventListener('click', openModal)
   form.addEventListener('submit', changePlayer)
   playerName.textContent = players.X.name
   playerChar.textContent = players.X.char
 
-  return { announce, cells }
-})()
-
-const automaticPlay = (() => {
-  const _play = char => {
-    const avaibleBoard = gameBoard.board.filter(item => isFinite(item))
-
-    // check if the game already ended
-    if (gameFlow.history.result !== false) return
-
-    const randomIndex = Math.floor(Math.random() * avaibleBoard.length)
-
-    players[char].play(avaibleBoard[randomIndex])
-  }
-
-  const autoCheck = () => {
-    const itsEven = gameFlow.history.turnCount % 2 === 0
-    if (players.X.auto === true && itsEven) _play('X')
-    else if (players.O.auto === true && !itsEven) _play('O')
-  }
-
-  autoCheck()
-
-  return { autoCheck }
+  return { cells, showCell, showResult, resetDisplay }
 })()
