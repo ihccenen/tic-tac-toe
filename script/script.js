@@ -29,7 +29,13 @@
 
       players[history.playerTurn].play(index)
 
-      // check which players is set to auto
+      if (gameFlow.history.turnCount === 9) {
+        gameFlow.history.result = 'Draw'
+        displayControl.showResult()
+
+        return
+      }
+
       checkAutoPlay()
     }
 
@@ -169,14 +175,6 @@
       if (gameFlow.checkWin(char, gameBoard.board)) {
         gameFlow.history.result = `Winner: ${name}`
         displayControl.showResult(gameFlow.history.result)
-
-        return
-      }
-
-      // if turn 9 and checkWin return false
-      if (gameFlow.history.turnCount === 9) {
-        gameFlow.history.result = 'Draw'
-        displayControl.showResult()
       }
     }
 
