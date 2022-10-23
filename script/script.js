@@ -47,37 +47,47 @@ const gameFlow = (() => {
   const _autoPlay = char => {
     const depth = 9 - history.turnCount
     const isMaximizingPlayer = char === 'X' ? true : false
-    const index = _minimax(gameBoard.board, depth, isMaximizingPlayer)
+    const index = _minimax(
+      gameBoard.board,
+      depth,
+      -Infinity,
+      Infinity,
+      isMaximizingPlayer
+    )
 
     players[char].play(index.index)
   }
 
-  const _minimax = (node, depth, maximizingPlayer) => {
+  const _minimax = (node, depth, alpha, beta, maximizingPlayer) => {
     if (checkWin('X', node)) return { score: 1 }
     else if (checkWin('O', node)) return { score: -1 }
     else if (depth === 0) return { score: 0 }
 
-    const availableIndex = node.filter(item => isFinite(item))
+    const availableIndexes = node.filter(item => isFinite(item))
     const allPlays = []
 
-    // test all possible plays with the available index and add the best ones to allPlays
-    for (let index of availableIndex) {
-      let result = null
-
-      // set char to X if maximizing player, otherwise O
-      const char = maximizingPlayer ? 'X' : 'O'
-      node[index] = char
-
+    for (let index of availableIndexes) {
       if (maximizingPlayer) {
-        result = _minimax(node, depth - 1, false)
+        node[index] = 'X'
+        const result = _minimax(node, depth - 1, alpha, beta, false)
+
+        node[index] = index
+        allPlays.push({ index, score: result.score })
+
+        if (result.score > beta) break
+
+        alpha = Math.max(alpha, result.score)
       } else {
-        result = _minimax(node, depth - 1, true)
+        node[index] = 'O'
+        const result = _minimax(node, depth - 1, alpha, beta, true)
+
+        node[index] = index
+        allPlays.push({ index, score: result.score })
+
+        if (result.score < alpha) break
+
+        beta = Math.min(beta, result.score)
       }
-
-      allPlays.push({ index: index, score: result.score })
-
-      // reset cell to initial index
-      node[index] = index
     }
 
     let bestPlay = null
@@ -152,6 +162,7 @@ const gameFlow = (() => {
     checkAutoPlay,
     changePlayerTurn,
     checkWin,
+    _autoPlay,
   }
 })()
 
@@ -160,7 +171,6 @@ const createPlayer = (name, char, auto) => {
     gameBoard.board[pos] = char
     displayControl.showCell(char, pos)
     gameFlow.history.turnCount++
-    console.log(gameFlow.history.turnCount)
     gameFlow.changePlayerTurn()
 
     if (gameFlow.checkWin(char, gameBoard.board)) {
@@ -237,3 +247,9 @@ const displayControl = (() => {
 
   return { cells, showCell, showResult, resetDisplay }
 })()
+
+const cells = Array.from(document.querySelectorAll('[data-cell]'))
+cells.forEach((cell, index) => {
+  if (isFinite(gameBoard.board[index])) return
+  cell.textContent = gameBoard.board[index]
+})
