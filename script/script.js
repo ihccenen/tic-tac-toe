@@ -251,10 +251,4 @@
 
     return { cells, showCell, showResult, resetDisplay }
   })()
-
-  const cells = Array.from(document.querySelectorAll('[data-cell]'))
-  cells.forEach((cell, index) => {
-    if (isFinite(gameBoard.board[index])) return
-    cell.textContent = gameBoard.board[index]
-  })
 })()
