@@ -4,6 +4,7 @@
   --clr-s-violet: #b3ad92;
   --clr-v-dark-cyan: #03444d;
   --clr-d-blue: #3f3f66;
+  --clr-d-magenta: #b381ab;
 }
 
 * {
@@ -92,6 +93,7 @@ select {
 }
 
 .game-board {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(3, 100px);
   gap: 0.5rem;
@@ -103,7 +105,90 @@ select {
   font-size: 3rem;
   color: var(--clr-v-dark-cyan);
   background-color: var(--clr-s-yellow);
-  height: 100px;
+  padding: 0.2em 0.2em 0.3em 0.2em;
   cursor: pointer;
   user-select: none;
+}
+
+.line {
+  position: absolute;
+  transition-duration: 500ms;
+}
+
+.stretch {
+  background-color: var(--clr-d-magenta);
+}
+
+.horizontal {
+  left: 0;
+  right: 100%;
+  transition-property: right;
+  height: 3px;
+}
+
+.horizontal.first-row {
+  top: 16.4%;
+}
+
+.horizontal.second-row {
+  top: 50.5%;
+}
+
+.horizontal.third-row {
+  bottom: 14.4%;
+}
+
+.stretch.horizontal {
+  right: 0;
+}
+
+.vertical {
+  top: 0;
+  bottom: 100%;
+  transition-property: bottom;
+  width: 3px;
+}
+
+.vertical.first-row {
+  left: 15.5%;
+}
+
+.vertical.second-row {
+  left: 49.7%;
+}
+
+.vertical.third-row {
+  right: 15.5%;
+}
+
+.stretch.vertical {
+  bottom: 0;
+}
+
+.diagonal {
+  top: 0;
+  bottom: 100%;
+  width: 4px;
+}
+
+.diagonal.first-row {
+  left: 0;
+  transform: skew(0.805rad);
+  transition-property: bottom, left;
+}
+
+.diagonal.second-row {
+  right: 0;
+  transform: skew(-0.805rad);
+  transition-property: bottom, right;
+}
+
+.stretch.diagonal.diagonal.first-row {
+  bottom: 0;
+  left: 50%;
+}
+
+.stretch.diagonal.diagonal.second-row {
+  right: 50%;
+  bottom: 0;
 }
