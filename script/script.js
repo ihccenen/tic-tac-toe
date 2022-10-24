@@ -173,8 +173,52 @@
       gameFlow.changePlayerTurn()
 
       if (gameFlow.checkWin(char, gameBoard.board)) {
+        _filterRows()
         gameFlow.history.result = `Winner: ${name}`
         displayControl.showResult(gameFlow.history.result)
+      }
+    }
+
+    const _filterRows = () => {
+      const rows = [
+        [0, 1, 2],
+        [3, 4, 5],
+        [6, 7, 8],
+        [0, 3, 6],
+        [1, 4, 7],
+        [2, 5, 8],
+        [0, 4, 8],
+        [2, 4, 6],
+      ]
+
+      // change row indexes to the board characters
+      rows.reduce((prev, curr) => {
+        for (let i = 0; i < curr.length; i++) {
+          if (curr[i] === 'X' || curr[i] === 'O') continue
+
+          curr[i] = gameBoard.board[curr[i]]
+        }
+        prev.push(curr)
+        return prev
+      }, [])
+
+      // divide rows in directions
+      const horizontal = rows.splice(0, 3)
+      const vertical = rows.splice(0, 3)
+      const diagonal = rows.splice(0, 2)
+
+      // check which direction to show win line
+      if (_checkWinRow(horizontal, 'horizontal')) return
+      else if (_checkWinRow(vertical, 'vertical')) return
+      else if (_checkWinRow(diagonal, 'diagonal')) return
+    }
+
+    const _checkWinRow = (arr, direction) => {
+      for (let i = 0; i < arr.length; i++) {
+        if (gameFlow.checkWin('X', arr[i]) || gameFlow.checkWin('O', arr[i])) {
+          // send to where to begin and the direction
+          displayControl.showWinLine(i + 1, direction)
+        }
       }
     }
 
@@ -196,9 +240,23 @@
       announce.textContent = gameFlow.history.result
     }
 
+    const showWinLine = (row, direction) => {
+      lineDiv.classList.toggle(direction)
+
+      if (row === 1) lineDiv.classList.toggle('first-row')
+      else if (row === 2) lineDiv.classList.toggle('second-row')
+      else if (row === 3) lineDiv.classList.toggle('third-row')
+
+      // needed so the line transition works
+      setTimeout(() => {
+        lineDiv.classList.toggle('stretch')
+      }, 1)
+    }
+
     const resetDisplay = () => {
+      lineDiv.className = 'line'
       cells.forEach(cell => {
-        cell.textContent = ''
+        cell.textContent = '\xa0'
         cell.style.cursor = 'pointer'
       })
 
@@ -235,6 +293,7 @@
     const cells = Array.from(document.querySelectorAll('[data-cell]'))
     const playerName = document.querySelector('[data-name]')
     const playerChar = document.querySelector('[data-char]')
+    const lineDiv = document.querySelector('[data-line]')
     const announce = document.querySelector('[data-announce]')
     const changeBtn = document.querySelector('[data-button="change"]')
     const modal = document.querySelector('[data-modal]')
@@ -248,6 +307,6 @@
     playerName.textContent = players.X.name
     playerChar.textContent = players.X.char
 
-    return { cells, showCell, showResult, resetDisplay }
+    return { cells, showCell, showResult, showWinLine, resetDisplay }
   })()
 })()
