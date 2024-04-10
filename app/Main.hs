@@ -55,11 +55,23 @@ startup = do
   setTargetFPS 60
   return $ initialState w
 
+play :: Player -> TileState -> TileState
+play player = \case
+  Empty -> Has player
+  p -> p
+
+nextPlayer :: Player -> Player
+nextPlayer X = O
+nextPlayer O = X
+
 drawBoard :: StateT GameState IO GameState
 drawBoard = do
   s <- get
   pos <- liftIO getMousePosition
-  let f :: Int -> Vector TileState -> IO (Vector TileState)
+  down <- liftIO $ isMouseButtonDown MouseButtonLeft
+  let current = playerTurn s
+      next board' = if board s == board' then current else nextPlayer current
+      f :: Int -> Vector TileState -> IO (Vector TileState)
       f i = V.imapM (g i)
       g :: Int -> Int -> TileState -> IO TileState
       g i j tileState = do
@@ -69,10 +81,14 @@ drawBoard = do
               ((screenHeight / 2 - 50) + (120 * fromIntegral j) - 120)
               100
               100
-        drawRectangleRec rec_ (if checkCollisionPointRec pos rec_ then gray else lightGray)
-        return tileState
+            tile = if down && checkCollisionPointRec pos rec_ then play current tileState else tileState
+        drawRectangleRec rec_ (case tile of
+                                 Empty -> if checkCollisionPointRec pos rec_ then gray else lightGray
+                                 Has X -> black
+                                 Has O -> violet)
+        return tile
   board' <- liftIO $ V.imapM f (board s)
-  put $ s { board = board' }
+  put $ s { playerTurn = next board', board = board' }
   return s
 
 drawTurn :: StateT GameState IO ()
