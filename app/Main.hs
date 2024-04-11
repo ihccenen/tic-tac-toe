@@ -6,7 +6,8 @@
 module Main where
 
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.State
+import Control.Monad.Trans.State ( get, put, StateT(runStateT) )
+import Data.IORef ( atomicWriteIORef, newIORef, readIORef, IORef )
 import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Raylib.Core
@@ -35,14 +36,16 @@ type Board = Vector (Vector TileState)
 data GameState where
   GameState
     :: { board :: Board
-       , playerTurn :: Player
+       , playerTurn :: IORef Player
        , window :: WindowResources
        }
     -> GameState
 
 initialState :: WindowResources -> GameState
 initialState = GameState (V.replicate 3 $ V.replicate 3 Empty) X
+  turn <- newIORef X
 
+  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn w
 screenWidth :: (Num a) => a
 screenWidth = 800
 
@@ -52,51 +55,58 @@ screenHeight = 600
 startup :: IO GameState
 startup = do
   w <- initWindow screenWidth screenHeight "tic-tac-toe"
-  setTargetFPS 60
-  return $ initialState w
-
-play :: Player -> TileState -> TileState
-play player = \case
-  Empty -> Has player
-  p -> p
+  setTargetFPS 60  
+  initialState w
 
 nextPlayer :: Player -> Player
 nextPlayer X = O
 nextPlayer O = X
 
+checkTurnLoop :: IORef Player -> Player -> TileState -> Bool -> IO TileState
+checkTurnLoop turn currentPlayer tileState clicked =
+  case tileState of
+    Empty -> if clicked
+             then do
+               atomicWriteIORef turn (nextPlayer currentPlayer)
+               return $ Has currentPlayer
+             else return tileState
+    _any -> return tileState
+
 drawBoard :: StateT GameState IO GameState
 drawBoard = do
   s <- get
+  let turn = playerTurn s
   pos <- liftIO getMousePosition
   down <- liftIO $ isMouseButtonDown MouseButtonLeft
-  let current = playerTurn s
-      next board' = if board s == board' then current else nextPlayer current
-      f :: Int -> Vector TileState -> IO (Vector TileState)
+  let f :: Int -> Vector TileState -> IO (Vector TileState)
       f i = V.imapM (g i)
       g :: Int -> Int -> TileState -> IO TileState
       g i j tileState = do
-        let rec_ =
+        currentPlayer <- readIORef turn
+        let clicked = down && checkCollisionPointRec pos rec_
+            x' = (screenWidth / 2 - 50) + (120 * fromIntegral i) - 120
+            y = (screenHeight / 2 - 50) + (120 * fromIntegral j) - 120
+            rec_ =
               Rectangle
-              ((screenWidth / 2 - 50) + (120 * fromIntegral i) - 120)
-              ((screenHeight / 2 - 50) + (120 * fromIntegral j) - 120)
+              x'
+              y
               100
               100
-            tile = if down && checkCollisionPointRec pos rec_ then play current tileState else tileState
-        drawRectangleRec rec_ (case tile of
-                                 Empty -> if checkCollisionPointRec pos rec_ then gray else lightGray
-                                 Has X -> black
-                                 Has O -> violet)
-        return tile
+        drawRectangleRec rec_ gray
+        case tileState of
+          Empty -> return ()
+          _ -> return ()
   board' <- liftIO $ V.imapM f (board s)
-  put $ s { playerTurn = next board', board = board' }
+  put $ s { board = board' }
   return s
 
 drawTurn :: StateT GameState IO ()
 drawTurn = do
   s <- get
-  let text = show (playerTurn s) <> " turn"
-  x <- liftIO $ measureText text 30
-  liftIO $ drawText text (screenWidth `div` 2 - x `div` 2) 20 30 black
+  player <- liftIO $ readIORef (playerTurn s)
+  let text = show player <> " turn"
+  z <- liftIO $ measureText text 30
+  liftIO $ drawText text (screenWidth `div` 2 - z `div` 2) 20 30 black
 
 mainLoop :: GameState -> IO GameState
 mainLoop s =
@@ -117,6 +127,8 @@ shouldClose :: GameState -> IO Bool
 shouldClose _ = windowShouldClose
 
 teardown :: GameState -> IO ()
-teardown = closeWindow . window
+teardown s = do
+  unloadTexture (oTexture s) (window s)
+  closeWindow $ window s
 
 $(raylibApplication 'startup 'mainLoop 'shouldClose 'teardown)
