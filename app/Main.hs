@@ -17,6 +17,7 @@ import Raylib.Types
 import Raylib.Util
 import Raylib.Util.Colors
 import Raylib.Core.Textures
+import Control.Monad (when)
 
 data Player where
   X :: Player
@@ -92,21 +93,36 @@ checkTurnLoop turn currentPlayer tileState clicked =
              else return tileState
     _any -> return tileState
 
-drawBoard :: StateT GameState IO GameState
-drawBoard = do
-  s <- get
-  let turn = playerTurn s
+clickedRec :: Rectangle -> IO Bool
+clickedRec rec_ = do
   pos <- liftIO getMousePosition
   down <- liftIO $ isMouseButtonDown MouseButtonLeft
-  let f :: Int -> Vector TileState -> IO (Vector TileState)
+  return $ down && checkCollisionPointRec pos rec_
+
+inlineCenter :: Float -> Float
+inlineCenter z = screenWidth / 2 - z / 2
+
+drawReset :: StateT GameState IO GameState
+drawReset = do
+  s <- get
+  z <- liftIO (fromIntegral <$> measureText "Reset" 30 :: IO Float)
+  let rec_ = Rectangle (inlineCenter $ z + 20) 520 (z + 20) 40
+  liftIO $ drawRectangleRec rec_ gray
+  liftIO $ drawText "Reset" (round $ inlineCenter z) 525 30 black
+  clicked <- liftIO $ clickedRec rec_
+  when clicked $ liftIO (initialState (window s)) >>= put
+  return s
+
 drawGame :: StateT GameState IO GameState
 drawGame = do
+  s <- get
+  let turn = playerTurn s
+      f :: Int -> Vector TileState -> IO (Vector TileState)
       f i = V.imapM (g i)
       g :: Int -> Int -> TileState -> IO TileState
       g i j tileState = do
         currentPlayer <- readIORef turn
-        let clicked = down && checkCollisionPointRec pos rec_
-            x' = (screenWidth / 2 - 50) + (120 * fromIntegral i) - 120
+        let x' = (screenWidth / 2 - 50) + (120 * fromIntegral i) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral j) - 120
             rec_ =
               Rectangle
@@ -120,18 +136,19 @@ drawGame = do
             drawRectangleRec rec_ gray
             drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
           Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
+        clicked <- clickedRec rec_
         checkTurnLoop turn currentPlayer tileState clicked
   board' <- liftIO $ V.imapM f (board s)
   put $ s { board = board' }
-  return s
+  drawReset
 
 drawTurn :: StateT GameState IO ()
 drawTurn = do
   s <- get
   player <- liftIO $ readIORef (playerTurn s)
   let text = show player <> " turn"
-  z <- liftIO $ measureText text 30
-  liftIO $ drawText text (screenWidth `div` 2 - z `div` 2) 20 30 black
+  z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
+  liftIO $ drawText text (round $ inlineCenter z) 20 30 black
 
 mainLoop :: GameState -> IO GameState
 mainLoop s =
