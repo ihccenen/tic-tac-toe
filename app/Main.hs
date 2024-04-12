@@ -16,6 +16,7 @@ import Raylib.Core.Text
 import Raylib.Types
 import Raylib.Util
 import Raylib.Util.Colors
+import Raylib.Core.Textures
 
 data Player where
   X :: Player
@@ -37,15 +38,34 @@ data GameState where
   GameState
     :: { board :: Board
        , playerTurn :: IORef Player
+       , xTexture :: Texture
+       , oTexture :: Texture
        , window :: WindowResources
        }
     -> GameState
 
-initialState :: WindowResources -> GameState
-initialState = GameState (V.replicate 3 $ V.replicate 3 Empty) X
+initialState :: WindowResources -> IO GameState
+initialState w = do
   turn <- newIORef X
 
-  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn w
+  x <- loadRenderTexture 80 80 w
+  o <- loadRenderTexture 100 100 w
+
+  beginTextureMode x
+  clearBackground black
+  drawTriangle (Vector2 8 0) (Vector2 (80 / 2) (80 / 2 - 8)) (Vector2 72 0) gray
+  drawTriangle (Vector2 0 8) (Vector2 0 72) (Vector2 (80 / 2 - 8) (80 / 2)) gray
+  drawTriangle (Vector2 (80 / 2) (80 / 2 + 8)) (Vector2 8 80) (Vector2 72 80) gray
+  drawTriangle (Vector2 80 8) (Vector2 (80 / 2 + 8) (80 / 2)) (Vector2 80 72) gray
+  endTextureMode
+
+  beginTextureMode o
+  clearBackground gray
+  drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
+  endTextureMode
+
+  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn (renderTexture'texture x) (renderTexture'texture o) w
+
 screenWidth :: (Num a) => a
 screenWidth = 800
 
@@ -92,10 +112,13 @@ drawBoard = do
               y
               100
               100
-        drawRectangleRec rec_ gray
         case tileState of
-          Empty -> return ()
-          _ -> return ()
+          Empty -> drawRectangleRec rec_ gray
+          Has X -> do
+            drawRectangleRec rec_ gray
+            drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
+          Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
+        checkTurnLoop turn currentPlayer tileState clicked
   board' <- liftIO $ V.imapM f (board s)
   put $ s { board = board' }
   return s
@@ -128,7 +151,9 @@ shouldClose _ = windowShouldClose
 
 teardown :: GameState -> IO ()
 teardown s = do
-  unloadTexture (oTexture s) (window s)
+  let unloadTexture' texture = unloadTexture (texture s) (window s)
+  unloadTexture' xTexture
+  unloadTexture' oTexture
   closeWindow $ window s
 
 $(raylibApplication 'startup 'mainLoop 'shouldClose 'teardown)
