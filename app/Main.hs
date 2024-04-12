@@ -99,6 +99,8 @@ drawBoard = do
   pos <- liftIO getMousePosition
   down <- liftIO $ isMouseButtonDown MouseButtonLeft
   let f :: Int -> Vector TileState -> IO (Vector TileState)
+drawGame :: StateT GameState IO GameState
+drawGame = do
       f i = V.imapM (g i)
       g :: Int -> Int -> TileState -> IO TileState
       g i j tileState = do
@@ -140,7 +142,7 @@ mainLoop s =
           runStateT
             ( do
                 drawTurn
-                drawBoard
+                drawGame
             )
             s
         return s'
