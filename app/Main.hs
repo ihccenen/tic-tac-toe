@@ -122,8 +122,8 @@ drawGame = do
       g :: Int -> Int -> TileState -> IO TileState
       g i j tileState = do
         currentPlayer <- readIORef turn
-        let x' = (screenWidth / 2 - 50) + (120 * fromIntegral i) - 120
-            y = (screenHeight / 2 - 50) + (120 * fromIntegral j) - 120
+        let x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
+            y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
             rec_ =
               Rectangle
               x'
