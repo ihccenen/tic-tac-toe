@@ -83,8 +83,8 @@ nextPlayer :: Player -> Player
 nextPlayer X = O
 nextPlayer O = X
 
-checkTurnLoop :: IORef Player -> Player -> TileState -> Bool -> IO TileState
-checkTurnLoop turn currentPlayer tileState clicked =
+updateTileState :: IORef Player -> Player -> TileState -> Bool -> IO TileState
+updateTileState turn currentPlayer tileState clicked =
   case tileState of
     Empty -> if clicked
              then do
@@ -117,11 +117,11 @@ drawGame :: StateT GameState IO GameState
 drawGame = do
   s <- get
   let turn = playerTurn s
-      f :: Int -> Vector TileState -> IO (Vector TileState)
-      f i = V.imapM (g i)
-      g :: Int -> Int -> TileState -> IO TileState
-      g i j tileState = do
         currentPlayer <- readIORef turn
+      cols :: Int -> Vector TileState -> IO (Vector TileState)
+      cols = V.imapM . rows
+      rows :: Int -> Int -> TileState -> IO TileState
+      rows i j tileState = do
         let x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
             rec_ =
@@ -137,8 +137,8 @@ drawGame = do
             drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
           Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
         clicked <- clickedRec rec_
-        checkTurnLoop turn currentPlayer tileState clicked
-  board' <- liftIO $ V.imapM f (board s)
+        updateTileState (playerTurn s) currentPlayer tileState clicked
+  board' <- liftIO $ V.imapM cols (board s)
   put $ s { board = board' }
   drawReset
 
