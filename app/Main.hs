@@ -1,28 +1,28 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImportQualifiedPost #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Main where
 
+import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.State ( get, put, StateT(runStateT) )
-import Data.IORef ( atomicWriteIORef, newIORef, readIORef, IORef )
+import Control.Monad.Trans.State (StateT (runStateT), get, put)
+import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Vector (Vector, (!))
 import Data.Vector qualified as V
 import Raylib.Core
 import Raylib.Core.Shapes
 import Raylib.Core.Text
+import Raylib.Core.Textures
 import Raylib.Types
 import Raylib.Util
 import Raylib.Util.Colors
-import Raylib.Core.Textures
-import Control.Monad (when)
 
 data Player where
   X :: Player
   O :: Player
-  deriving Eq
+  deriving (Eq)
 
 instance Show Player where
   show X = "Player X"
@@ -31,7 +31,7 @@ instance Show Player where
 data TileState where
   Empty :: TileState
   Has :: Player -> TileState
-  deriving Eq
+  deriving (Eq)
 
 data End where
   Draw :: End
@@ -73,7 +73,13 @@ initialState w = do
   drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
   endTextureMode
 
-  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn (renderTexture'texture x) (renderTexture'texture o) w
+  return $
+    GameState
+      (V.replicate 3 $ V.replicate 3 Empty)
+      turn
+      (renderTexture'texture x)
+      (renderTexture'texture o)
+      w
 
 screenWidth :: (Num a) => a
 screenWidth = 800
@@ -84,7 +90,7 @@ screenHeight = 600
 startup :: IO GameState
 startup = do
   w <- initWindow screenWidth screenHeight "tic-tac-toe"
-  setTargetFPS 60  
+  setTargetFPS 60
   initialState w
 
 nextPlayer :: Player -> Player
@@ -94,11 +100,12 @@ nextPlayer O = X
 updateTileState :: IORef Player -> Player -> TileState -> Bool -> IO TileState
 updateTileState turn currentPlayer tileState clicked =
   case tileState of
-    Empty -> if clicked
-             then do
-               atomicWriteIORef turn (nextPlayer currentPlayer)
-               return $ Has currentPlayer
-             else return tileState
+    Empty ->
+      if clicked
+        then do
+          atomicWriteIORef turn (nextPlayer currentPlayer)
+          return $ Has currentPlayer
+        else return tileState
     _any -> return tileState
 
 clickedRec :: Rectangle -> IO Bool
@@ -134,7 +141,6 @@ checkWin board'
   -- diagonals
   | row0 ! 0 /= Empty && row0 ! 0 == row1 ! 1 && row0 ! 0 == row2 ! 2 = True
   | row0 ! 2 /= Empty && row0 ! 2 == row1 ! 1 && row0 ! 2 == row2 ! 0 = True
-
   | otherwise = False
   where
     row0 = board' ! 0
@@ -142,7 +148,7 @@ checkWin board'
     row2 = board' ! 2
 
 checkDraw :: Board -> Bool
-checkDraw = V.null . V.foldMap (V.filter (==Empty))
+checkDraw = V.null . V.foldMap (V.filter (== Empty))
 
 getWinner :: Player -> End
 getWinner X = Winner O
@@ -153,9 +159,10 @@ checkGameEnd = do
   s <- get
   p <- liftIO $ readIORef $ playerTurn s
   let board' = board s
-      result | checkWin board' = Just $ getWinner p
-             | checkDraw board' = Just Draw
-             | otherwise = Nothing
+      result
+        | checkWin board' = Just $ getWinner p
+        | checkDraw board' = Just Draw
+        | otherwise = Nothing
   return result
 
 drawGameText :: StateT GameState IO ()
@@ -164,8 +171,8 @@ drawGameText = do
   player <- liftIO $ readIORef (playerTurn s)
   ended <- checkGameEnd
   let (text, color) = case ended of
-                        Just result -> (show result, blue)
-                        Nothing -> (show player <> " turn", black)
+        Just result -> (show result, blue)
+        Nothing -> (show player <> " turn", black)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
 
@@ -180,12 +187,7 @@ drawGame = do
       rows i j tileState = do
         let x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
-            rec_ =
-              Rectangle
-              x'
-              y
-              100
-              100
+            rec_ = Rectangle x' y 100 100
         case tileState of
           Empty -> drawRectangleRec rec_ gray
           Has X -> do
@@ -196,7 +198,7 @@ drawGame = do
           then return tileState
           else clickedRec rec_ >>= updateTileState (playerTurn s) currentPlayer tileState
   board' <- liftIO $ V.imapM cols (board s)
-  put $ s { board = board' }
+  put $ s {board = board'}
   drawGameText
   drawReset
 
