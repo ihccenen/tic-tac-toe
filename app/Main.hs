@@ -8,7 +8,7 @@ module Main where
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State ( get, put, StateT(runStateT) )
 import Data.IORef ( atomicWriteIORef, newIORef, readIORef, IORef )
-import Data.Vector (Vector)
+import Data.Vector (Vector, (!))
 import Data.Vector qualified as V
 import Raylib.Core
 import Raylib.Core.Shapes
@@ -113,11 +113,46 @@ drawReset = do
   when clicked $ liftIO (initialState (window s)) >>= put
   return s
 
+checkWinner :: Board -> Bool
+checkWinner board'
+  -- horizontals
+  | row0 ! 0 /= Empty && row0 ! 0 == row0 ! 1 && row0 ! 0 == row0 ! 2 = True
+  | row1 ! 0 /= Empty && row1 ! 0 == row1 ! 1 && row1 ! 0 == row1 ! 2 = True
+  | row2 ! 0 /= Empty && row2 ! 0 == row2 ! 1 && row2 ! 0 == row2 ! 2 = True
+  -- verticals
+  | row0 ! 0 /= Empty && row0 ! 0 == row1 ! 0 && row0 ! 0 == row2 ! 0 = True
+  | row0 ! 1 /= Empty && row0 ! 1 == row1 ! 1 && row0 ! 1 == row2 ! 1 = True
+  | row0 ! 2 /= Empty && row0 ! 2 == row1 ! 2 && row0 ! 2 == row2 ! 2 = True
+  -- diagonals
+  | row0 ! 0 /= Empty && row0 ! 0 == row1 ! 1 && row0 ! 0 == row2 ! 2 = True
+  | row0 ! 2 /= Empty && row0 ! 2 == row1 ! 1 && row0 ! 2 == row2 ! 0 = True
+
+  | otherwise = False
+  where
+    row0 = board' ! 0
+    row1 = board' ! 1
+    row2 = board' ! 2
+
+getWinner :: Player -> Player
+getWinner = \case
+  X -> O
+  O -> X
+
+drawTurnText :: Bool -> StateT GameState IO ()
+drawTurnText win = do
+  s <- get
+  player <- liftIO $ readIORef (playerTurn s)
+  let text = if win
+             then show (getWinner player) <> " wins!"
+             else show player <> " turn"
+  z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
+  liftIO $ drawText text (round $ inlineCenter z) 20 30 (if win then blue else black)
+
 drawGame :: StateT GameState IO GameState
 drawGame = do
   s <- get
-  let turn = playerTurn s
-        currentPlayer <- readIORef turn
+  currentPlayer <- liftIO $ readIORef $ playerTurn s
+  let win = checkWinner $ board s
       cols :: Int -> Vector TileState -> IO (Vector TileState)
       cols = V.imapM . rows
       rows :: Int -> Int -> TileState -> IO TileState
@@ -136,33 +171,20 @@ drawGame = do
             drawRectangleRec rec_ gray
             drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
           Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
-        clicked <- clickedRec rec_
-        updateTileState (playerTurn s) currentPlayer tileState clicked
+        if win
+          then return tileState
+          else clickedRec rec_ >>= updateTileState (playerTurn s) currentPlayer tileState
   board' <- liftIO $ V.imapM cols (board s)
   put $ s { board = board' }
+  drawTurnText win
   drawReset
-
-drawTurn :: StateT GameState IO ()
-drawTurn = do
-  s <- get
-  player <- liftIO $ readIORef (playerTurn s)
-  let text = show player <> " turn"
-  z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
-  liftIO $ drawText text (round $ inlineCenter z) 20 30 black
 
 mainLoop :: GameState -> IO GameState
 mainLoop s =
   drawing
     ( do
         clearBackground rayWhite
-        (_, s') <-
-          runStateT
-            ( do
-                drawTurn
-                drawGame
-            )
-            s
-        return s'
+        snd <$> runStateT drawGame s
     )
 
 shouldClose :: GameState -> IO Bool
