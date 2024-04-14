@@ -117,8 +117,8 @@ clickedRec rec_ = do
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
 
-drawReset :: StateT GameState IO GameState
-drawReset = do
+checkRestart :: StateT GameState IO GameState
+checkRestart = do
   s <- get
   z <- liftIO (fromIntegral <$> measureText "Reset" 30 :: IO Float)
   let rec_ = Rectangle (inlineCenter $ z + 20) 520 (z + 20) 40
@@ -165,8 +165,8 @@ checkGameEnd = do
         | otherwise = Nothing
   return result
 
-drawGameText :: StateT GameState IO ()
-drawGameText = do
+gameText :: StateT GameState IO ()
+gameText = do
   s <- get
   player <- liftIO $ readIORef (playerTurn s)
   ended <- checkGameEnd
@@ -176,8 +176,8 @@ drawGameText = do
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
 
-drawGame :: StateT GameState IO GameState
-drawGame = do
+game :: StateT GameState IO GameState
+game = do
   s <- get
   currentPlayer <- liftIO $ readIORef $ playerTurn s
   let win = checkWin $ board s
@@ -199,15 +199,15 @@ drawGame = do
           else clickedRec rec_ >>= updateTileState (playerTurn s) currentPlayer tileState
   board' <- liftIO $ V.imapM cols (board s)
   put $ s {board = board'}
-  drawGameText
-  drawReset
+  gameText
+  checkRestart
 
 mainLoop :: GameState -> IO GameState
 mainLoop s =
   drawing
     ( do
         clearBackground rayWhite
-        snd <$> runStateT drawGame s
+        snd <$> runStateT game s
     )
 
 shouldClose :: GameState -> IO Bool
