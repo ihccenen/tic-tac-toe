@@ -189,18 +189,66 @@ game = do
           Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
         if win
           then return tileState
-          else clickedRec rec_ >>= updateTileState (playerTurn s) currentPlayer tileState
+          else turnUpdate rec_ (playerTurn s) currentPlayer tileState
   board' <- liftIO $ V.imapM cols (board s)
   put $ s {board = board'}
   gameText
   checkRestart
+
+updateGameStateWhenClicked :: Rectangle -> GameState -> StateT GameState IO ()
+updateGameStateWhenClicked rec_ newState = do
+  clicked <- liftIO $ clickedRec rec_
+  when clicked $ put newState
+
+menu :: StateT GameState IO GameState
+menu = do
+  s <- get
+  let gameMode = mode s
+      twoPlayersRec = Rectangle 0 0 100 100
+      vsAIRec = Rectangle 110 0 100 100
+      startRec = Rectangle 230 0 100 100
+      xRec = Rectangle 110 110 30 30
+      oRec = Rectangle 110 150 30 30
+      clickUpdates =
+        updateGameStateWhenClicked
+          <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
+          <*> ZipList
+            [ s {phase = Game}
+            , s {mode = Just TwoPlayers}
+            , s {mode = Just (VsAI X)}
+            , s {mode = Just (VsAI X)}
+            , s {mode = Just (VsAI O)}
+            ]
+
+  liftIO $ do
+    case gameMode of
+      Just TwoPlayers -> drawRectangleRec twoPlayersRec black >> drawRectangleLinesEx vsAIRec 10 black
+      Just (VsAI p) -> do
+        drawRectangleLinesEx twoPlayersRec 10 black
+        drawRectangleRec vsAIRec black
+        case p of
+          X -> drawRectangleRec xRec black >> drawRectangleLinesEx oRec 3 black
+          O -> drawRectangleLinesEx xRec 3 black >> drawRectangleRec oRec black
+      Nothing -> drawRectangleLinesEx twoPlayersRec 10 black >> drawRectangleLinesEx vsAIRec 10 black
+    drawRectangleRec startRec green
+
+  sequence_ clickUpdates
+  return s
 
 mainLoop :: GameState -> IO GameState
 mainLoop s =
   drawing
     ( do
         clearBackground rayWhite
-        snd <$> runStateT game s
+        snd
+          <$> runStateT
+            ( do
+                p <- phase <$> get
+                case p of
+                  Menu -> menu
+                  Game -> game
+            )
+            s
     )
 
 shouldClose :: GameState -> IO Bool
