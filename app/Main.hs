@@ -100,8 +100,8 @@ updateTileState turn currentPlayer tileState clicked =
 
 clickedRec :: Rectangle -> IO Bool
 clickedRec rec_ = do
-  pos <- liftIO getMousePosition
-  down <- liftIO $ isMouseButtonDown MouseButtonLeft
+  pos <- getMousePosition
+  down <-isMouseButtonDown MouseButtonLeft
   return $ down && checkCollisionPointRec pos rec_
 
 inlineCenter :: Float -> Float
