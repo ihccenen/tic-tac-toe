@@ -53,10 +53,6 @@ data GameState where
        }
     -> GameState
 
-initialState :: WindowResources -> Texture -> Texture -> IO GameState
-initialState w x o = do
-  turn <- newIORef X
-  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn x o w
 
 screenWidth :: (Num a) => a
 screenWidth = 800
@@ -84,7 +80,8 @@ startup = do
   drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
   endTextureMode
 
-  initialState w (renderTexture'texture x) (renderTexture'texture o)
+  return $
+    GameState Game (Just TwoPlayers) emptyBoard turn (renderTexture'texture x) (renderTexture'texture o) w
 
 nextPlayer :: Player -> Player
 nextPlayer X = O
@@ -113,12 +110,14 @@ inlineCenter z = screenWidth / 2 - z / 2
 checkRestart :: StateT GameState IO GameState
 checkRestart = do
   s <- get
-  z <- liftIO (fromIntegral <$> measureText "Reset" 30 :: IO Float)
+  z <- liftIO (fromIntegral <$> measureText "Restart" 30 :: IO Float)
   let rec_ = Rectangle (inlineCenter $ z + 20) 520 (z + 20) 40
   liftIO $ drawRectangleRec rec_ gray
-  liftIO $ drawText "Reset" (round $ inlineCenter z) 525 30 black
+  liftIO $ drawText "Restart" (round $ inlineCenter z) 525 30 black
   clicked <- liftIO $ clickedRec rec_
-  when clicked $ liftIO (initialState (window s) (xTexture s) (oTexture s)) >>= put
+  when clicked $ do
+    liftIO $ atomicWriteIORef (playerTurn s) X
+    put s {board = emptyBoard}
   return s
 
 checkWin :: Board -> Bool
