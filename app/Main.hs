@@ -89,6 +89,11 @@ nextPlayer O = X
 
 updateTileState :: IORef Player -> Player -> TileState -> Bool -> IO TileState
 updateTileState turn currentPlayer tileState clicked =
+clickedRec :: Rectangle -> IO Bool
+clickedRec rec_ = do
+  pos <- getMousePosition
+  down <- isMouseButtonDown MouseButtonLeft
+  return $ down && checkCollisionPointRec pos rec_
   case tileState of
     Empty ->
       if clicked
@@ -97,12 +102,6 @@ updateTileState turn currentPlayer tileState clicked =
           return $ Has currentPlayer
         else return tileState
     _any -> return tileState
-
-clickedRec :: Rectangle -> IO Bool
-clickedRec rec_ = do
-  pos <- getMousePosition
-  down <-isMouseButtonDown MouseButtonLeft
-  return $ down && checkCollisionPointRec pos rec_
 
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
