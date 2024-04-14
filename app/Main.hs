@@ -53,10 +53,21 @@ data GameState where
        }
     -> GameState
 
-initialState :: WindowResources -> IO GameState
-initialState w = do
+initialState :: WindowResources -> Texture -> Texture -> IO GameState
+initialState w x o = do
   turn <- newIORef X
+  return $ GameState (V.replicate 3 $ V.replicate 3 Empty) turn x o w
 
+screenWidth :: (Num a) => a
+screenWidth = 800
+
+screenHeight :: (Num a) => a
+screenHeight = 600
+
+startup :: IO GameState
+startup = do
+  w <- initWindow screenWidth screenHeight "tic-tac-toe"
+  setTargetFPS 60
   x <- loadRenderTexture 80 80 w
   o <- loadRenderTexture 100 100 w
 
@@ -73,25 +84,7 @@ initialState w = do
   drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
   endTextureMode
 
-  return $
-    GameState
-      (V.replicate 3 $ V.replicate 3 Empty)
-      turn
-      (renderTexture'texture x)
-      (renderTexture'texture o)
-      w
-
-screenWidth :: (Num a) => a
-screenWidth = 800
-
-screenHeight :: (Num a) => a
-screenHeight = 600
-
-startup :: IO GameState
-startup = do
-  w <- initWindow screenWidth screenHeight "tic-tac-toe"
-  setTargetFPS 60
-  initialState w
+  initialState w (renderTexture'texture x) (renderTexture'texture o)
 
 nextPlayer :: Player -> Player
 nextPlayer X = O
@@ -125,7 +118,7 @@ checkRestart = do
   liftIO $ drawRectangleRec rec_ gray
   liftIO $ drawText "Reset" (round $ inlineCenter z) 525 30 black
   clicked <- liftIO $ clickedRec rec_
-  when clicked $ liftIO (initialState (window s)) >>= put
+  when clicked $ liftIO (initialState (window s) (xTexture s) (oTexture s)) >>= put
   return s
 
 checkWin :: Board -> Bool
