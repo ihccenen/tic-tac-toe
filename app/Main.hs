@@ -53,6 +53,8 @@ data GameState where
        }
     -> GameState
 
+emptyBoard :: Board
+emptyBoard = V.replicate 3 $ V.replicate 3 Empty
 
 screenWidth :: (Num a) => a
 screenWidth = 800
