@@ -5,6 +5,7 @@
 
 module Main where
 
+import Control.Applicative (ZipList (ZipList))
 import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
@@ -18,6 +19,14 @@ import Raylib.Core.Textures
 import Raylib.Types
 import Raylib.Util
 import Raylib.Util.Colors
+
+data Phase where
+  Menu :: Phase
+  Game :: Phase
+
+data GameMode where
+  TwoPlayers :: GameMode
+  VsAI :: GameMode
 
 data Player where
   X :: Player
@@ -45,7 +54,10 @@ type Board = Vector (Vector TileState)
 
 data GameState where
   GameState
-    :: { board :: Board
+    :: { phase :: Phase
+       , mode :: Maybe GameMode
+       , singlePlayer :: Player
+       , board :: Board
        , playerTurn :: IORef Player
        , xTexture :: Texture
        , oTexture :: Texture
@@ -66,6 +78,7 @@ startup :: IO GameState
 startup = do
   w <- initWindow screenWidth screenHeight "tic-tac-toe"
   setTargetFPS 60
+  turn <- newIORef X
   x <- loadRenderTexture 80 80 w
   o <- loadRenderTexture 100 100 w
 
@@ -83,24 +96,34 @@ startup = do
   endTextureMode
 
   return $
-    GameState Game (Just TwoPlayers) emptyBoard turn (renderTexture'texture x) (renderTexture'texture o) w
+    GameState
+      Menu
+      (Just TwoPlayers)
+      X
+      emptyBoard
+      turn
+      (renderTexture'texture x)
+      (renderTexture'texture o)
+      w
 
 nextPlayer :: Player -> Player
 nextPlayer X = O
 nextPlayer O = X
 
-updateTileState :: IORef Player -> Player -> TileState -> Bool -> IO TileState
-updateTileState turn currentPlayer tileState clicked =
 clickedRec :: Rectangle -> IO Bool
 clickedRec rec_ = do
   pos <- getMousePosition
   down <- isMouseButtonDown MouseButtonLeft
   return $ down && checkCollisionPointRec pos rec_
+
+turnUpdate :: Rectangle -> IORef Player -> Player -> TileState -> IO TileState
+turnUpdate rec_ turnRef currentPlayer tileState = do
+  clicked <- clickedRec rec_
   case tileState of
     Empty ->
       if clicked
         then do
-          atomicWriteIORef turn (nextPlayer currentPlayer)
+          atomicWriteIORef turnRef (nextPlayer currentPlayer)
           return $ Has currentPlayer
         else return tileState
     _any -> return tileState
@@ -203,34 +226,43 @@ updateGameStateWhenClicked rec_ newState = do
 menu :: StateT GameState IO GameState
 menu = do
   s <- get
+  tPSize <- liftIO $ measureText "Two Players" 30
+  vsAISize <- liftIO $ measureText "Vs AI" 30
+  startSize <- liftIO $ measureText "Start" 30
   let gameMode = mode s
-      twoPlayersRec = Rectangle 0 0 100 100
-      vsAIRec = Rectangle 110 0 100 100
-      startRec = Rectangle 230 0 100 100
-      xRec = Rectangle 110 110 30 30
-      oRec = Rectangle 110 150 30 30
+      center = inlineCenter 0
+      twoPlayersRec = Rectangle (center - fromIntegral (tPSize + 30)) 100 (fromIntegral tPSize + 20) 50
+      vsAIRec = Rectangle (center + 10) 100 (fromIntegral vsAISize + 20) 50
+      startRec =
+        Rectangle (inlineCenter (fromIntegral startSize) - 10) (500 - 10) (fromIntegral startSize + 20) 50
+      xRec = Rectangle (center + 20 - 6) (200 - 2) 30 30
+      oRec = Rectangle (center + fromIntegral vsAISize - 6) (200 - 2) 30 30
       clickUpdates =
         updateGameStateWhenClicked
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
           <*> ZipList
             [ s {phase = Game}
             , s {mode = Just TwoPlayers}
-            , s {mode = Just (VsAI X)}
-            , s {mode = Just (VsAI X)}
-            , s {mode = Just (VsAI O)}
+            , s {mode = Just VsAI}
+            , s {singlePlayer = X}
+            , s {singlePlayer = O}
             ]
-
   liftIO $ do
-    case gameMode of
-      Just TwoPlayers -> drawRectangleRec twoPlayersRec black >> drawRectangleLinesEx vsAIRec 10 black
-      Just (VsAI p) -> do
-        drawRectangleLinesEx twoPlayersRec 10 black
-        drawRectangleRec vsAIRec black
-        case p of
-          X -> drawRectangleRec xRec black >> drawRectangleLinesEx oRec 3 black
-          O -> drawRectangleLinesEx xRec 3 black >> drawRectangleRec oRec black
-      Nothing -> drawRectangleLinesEx twoPlayersRec 10 black >> drawRectangleLinesEx vsAIRec 10 black
+    drawText "Two Players" (round center - (tPSize + 20)) 110 30 black
+    drawText "Vs AI" (round center + 20) 110 30 black
     drawRectangleRec startRec green
+    drawText "Start" (round $ inlineCenter $ fromIntegral startSize) 500 30 black
+    case gameMode of
+      Just TwoPlayers -> drawRectangleLinesEx twoPlayersRec 2 black
+      Just VsAI -> do
+        drawRectangleLinesEx vsAIRec 2 black
+        drawText "Player:" (round center + 10) 160 30 black
+        drawText "X" (round center + 20) 200 30 black
+        drawText "O" (round center + vsAISize) 200 30 black
+        case singlePlayer s of
+          X -> drawRectangleLinesEx xRec 2 black
+          O -> drawRectangleLinesEx oRec 2 black
+      Nothing -> return ()
 
   sequence_ clickUpdates
   return s
