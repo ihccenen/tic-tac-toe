@@ -50,7 +50,7 @@ instance Show End where
   show Draw = "Draw"
   show (Winner p) = show p <> " wins"
 
-type Board = Vector (Vector TileState)
+type Board = Vector TileState
 
 data GameState where
   GameState
@@ -66,7 +66,7 @@ data GameState where
     -> GameState
 
 emptyBoard :: Board
-emptyBoard = V.replicate 3 $ V.replicate 3 Empty
+emptyBoard = V.replicate 9 Empty
 
 screenWidth :: (Num a) => a
 screenWidth = 800
@@ -147,24 +147,20 @@ checkRestart = do
 checkWin :: Board -> Bool
 checkWin board'
   -- horizontals
-  | row0 ! 0 /= Empty && row0 ! 0 == row0 ! 1 && row0 ! 0 == row0 ! 2 = True
-  | row1 ! 0 /= Empty && row1 ! 0 == row1 ! 1 && row1 ! 0 == row1 ! 2 = True
-  | row2 ! 0 /= Empty && row2 ! 0 == row2 ! 1 && row2 ! 0 == row2 ! 2 = True
+  | board' ! 0 /= Empty && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2 = True
+  | board' ! 3 /= Empty && board' ! 3 == board' ! 4 && board' ! 3 == board' ! 5 = True
+  | board' ! 6 /= Empty && board' ! 6 == board' ! 7 && board' ! 6 == board' ! 8 = True
   -- verticals
-  | row0 ! 0 /= Empty && row0 ! 0 == row1 ! 0 && row0 ! 0 == row2 ! 0 = True
-  | row0 ! 1 /= Empty && row0 ! 1 == row1 ! 1 && row0 ! 1 == row2 ! 1 = True
-  | row0 ! 2 /= Empty && row0 ! 2 == row1 ! 2 && row0 ! 2 == row2 ! 2 = True
+  | board' ! 0 /= Empty && board' ! 0 == board' ! 3 && board' ! 0 == board' ! 6 = True
+  | board' ! 1 /= Empty && board' ! 1 == board' ! 4 && board' ! 1 == board' ! 7 = True
+  | board' ! 2 /= Empty && board' ! 2 == board' ! 5 && board' ! 2 == board' ! 8 = True
   -- diagonals
-  | row0 ! 0 /= Empty && row0 ! 0 == row1 ! 1 && row0 ! 0 == row2 ! 2 = True
-  | row0 ! 2 /= Empty && row0 ! 2 == row1 ! 1 && row0 ! 2 == row2 ! 0 = True
+  | board' ! 0 /= Empty && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8 = True
+  | board' ! 2 /= Empty && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 = True
   | otherwise = False
-  where
-    row0 = board' ! 0
-    row1 = board' ! 1
-    row2 = board' ! 2
 
 checkDraw :: Board -> Bool
-checkDraw = V.null . V.foldMap (V.filter (== Empty))
+checkDraw = V.null . V.filter (==Empty)
 
 getWinner :: Player -> End
 getWinner X = Winner O
@@ -196,12 +192,12 @@ game :: StateT GameState IO GameState
 game = do
   s <- get
   currentPlayer <- liftIO $ readIORef $ playerTurn s
-  let win = checkWin $ board s
-      cols :: Int -> Vector TileState -> IO (Vector TileState)
-      cols = V.imapM . rows
-      rows :: Int -> Int -> TileState -> IO TileState
-      rows i j tileState = do
-        let x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
+  let f :: Int -> TileState -> IO TileState
+      f idx tileState = do
+        let i = idx `div` 3
+            j = idx `rem` 3
+            win = checkWin $ board s
+            x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
             rec_ = Rectangle x' y 100 100
         case tileState of
@@ -213,7 +209,7 @@ game = do
         if win
           then return tileState
           else turnUpdate rec_ (playerTurn s) currentPlayer tileState
-  board' <- liftIO $ V.imapM cols (board s)
+  board' <- liftIO $ V.imapM f (board s)
   put $ s {board = board'}
   gameText
   checkRestart
