@@ -144,20 +144,23 @@ checkRestart = do
     put s {board = emptyBoard}
   return s
 
-checkWin :: Board -> Bool
-checkWin board'
+checkWin :: Board -> Player -> Maybe End
+checkWin board' player
   -- horizontals
-  | board' ! 0 /= Empty && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2 = True
-  | board' ! 3 /= Empty && board' ! 3 == board' ! 4 && board' ! 3 == board' ! 5 = True
-  | board' ! 6 /= Empty && board' ! 6 == board' ! 7 && board' ! 6 == board' ! 8 = True
-  -- verticals
-  | board' ! 0 /= Empty && board' ! 0 == board' ! 3 && board' ! 0 == board' ! 6 = True
-  | board' ! 1 /= Empty && board' ! 1 == board' ! 4 && board' ! 1 == board' ! 7 = True
-  | board' ! 2 /= Empty && board' ! 2 == board' ! 5 && board' ! 2 == board' ! 8 = True
-  -- diagonals
-  | board' ! 0 /= Empty && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8 = True
-  | board' ! 2 /= Empty && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 = True
-  | otherwise = False
+  | board' ! 0 == Has player && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2
+      || board' ! 3 == Has player && board' ! 3 == board' ! 4 && board' ! 3 == board' ! 5
+      || board' ! 6 == Has player && board' ! 6 == board' ! 7 && board' ! 6 == board' ! 8
+      ||
+      -- verticals
+      board' ! 0 == Has player && board' ! 0 == board' ! 3 && board' ! 0 == board' ! 6
+      || board' ! 1 == Has player && board' ! 1 == board' ! 4 && board' ! 1 == board' ! 7
+      || board' ! 2 == Has player && board' ! 2 == board' ! 5 && board' ! 2 == board' ! 8
+      ||
+      -- diagonals
+      board' ! 0 == Has player && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8
+      || board' ! 2 == Has player && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 =
+      Just $ Winner player
+  | otherwise = Nothing
 
 checkDraw :: Board -> Bool
 checkDraw = V.null . V.filter (==Empty)
@@ -172,7 +175,7 @@ checkGameEnd = do
   p <- liftIO $ readIORef $ playerTurn s
   let board' = board s
       result
-        | checkWin board' = Just $ getWinner p
+        | Just winner <- checkWin board' (nextPlayer p) = Just winner
         | checkDraw board' = Just Draw
         | otherwise = Nothing
   return result
@@ -192,11 +195,11 @@ game :: StateT GameState IO GameState
 game = do
   s <- get
   currentPlayer <- liftIO $ readIORef $ playerTurn s
-  let f :: Int -> TileState -> IO TileState
+  let lose = checkWin (board s) (nextPlayer currentPlayer)
+      f :: Int -> TileState -> IO TileState
       f idx tileState = do
         let i = idx `div` 3
             j = idx `rem` 3
-            win = checkWin $ board s
             x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
             rec_ = Rectangle x' y 100 100
@@ -206,11 +209,13 @@ game = do
             drawRectangleRec rec_ gray
             drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
           Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
-        if win
-          then return tileState
-          else turnUpdate rec_ (playerTurn s) currentPlayer tileState
-  board' <- liftIO $ V.imapM f (board s)
-  put $ s {board = board'}
+        case lose of
+          Just _ -> return tileState
+          _any -> turnUpdate rec_ (playerTurn s) currentPlayer tileState
+  when (isNothing lose && mode s == Just VsAI && currentPlayer /= singlePlayer s) randomMove
+  s' <- get
+  board' <- liftIO $ V.imapM f (board s')
+  put $ s' {board = board'}
   gameText
   checkRestart
 
