@@ -6,10 +6,11 @@
 module Main where
 
 import Control.Applicative (ZipList (ZipList))
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
 import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
+import Data.Maybe (isNothing)
 import Data.Vector (Vector, (!))
 import Data.Vector qualified as V
 import Raylib.Core
@@ -19,6 +20,7 @@ import Raylib.Core.Textures
 import Raylib.Types
 import Raylib.Util
 import Raylib.Util.Colors
+import System.Random
 
 data Phase where
   Menu :: Phase
@@ -27,6 +29,7 @@ data Phase where
 data GameMode where
   TwoPlayers :: GameMode
   VsAI :: GameMode
+  deriving (Eq)
 
 data Player where
   X :: Player
@@ -45,6 +48,7 @@ data TileState where
 data End where
   Draw :: End
   Winner :: Player -> End
+  deriving (Eq)
 
 instance Show End where
   show Draw = "Draw"
@@ -59,6 +63,7 @@ data GameState where
        , singlePlayer :: Player
        , board :: Board
        , playerTurn :: IORef Player
+       , generator :: StdGen
        , xTexture :: Texture
        , oTexture :: Texture
        , window :: WindowResources
@@ -79,6 +84,7 @@ startup = do
   w <- initWindow screenWidth screenHeight "tic-tac-toe"
   setTargetFPS 60
   turn <- newIORef X
+  gen <- randomIO
   x <- loadRenderTexture 80 80 w
   o <- loadRenderTexture 100 100 w
 
@@ -102,6 +108,7 @@ startup = do
       X
       emptyBoard
       turn
+      (mkStdGen gen)
       (renderTexture'texture x)
       (renderTexture'texture o)
       w
@@ -163,10 +170,10 @@ checkWin board' player
   | otherwise = Nothing
 
 checkDraw :: Board -> Bool
-checkDraw = V.null . V.filter (==Empty)
+checkDraw = V.null . V.filter (== Empty)
 
 getWinner :: Player -> End
-getWinner X = Winner O
+getWinner X = Winner X
 getWinner O = Winner X
 
 checkGameEnd :: StateT GameState IO (Maybe End)
@@ -190,6 +197,23 @@ gameText = do
         Nothing -> (show player <> " turn", black)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
+
+randomMove :: StateT GameState IO ()
+randomMove = do
+  s <- get
+  let ai = playerTurn s
+      gen = generator s
+      empty :: Vector (Int, TileState)
+      empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
+      (i, nextGen) = randomR (0, V.length empty - 1) gen
+  unless (V.null empty) $ do
+    currentPlayer <- liftIO $ readIORef ai
+    liftIO $ atomicWriteIORef ai (nextPlayer currentPlayer)
+    put $
+      s
+        { board = V.update (board s) (V.singleton (fst $ empty ! i, Has currentPlayer))
+        , generator = nextGen
+        }
 
 game :: StateT GameState IO GameState
 game = do
