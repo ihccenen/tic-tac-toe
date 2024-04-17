@@ -113,7 +113,7 @@ nextPlayer O = X
 clickedRec :: Rectangle -> IO Bool
 clickedRec rec_ = do
   pos <- getMousePosition
-  down <- isMouseButtonDown MouseButtonLeft
+  down <- isMouseButtonPressed MouseButtonLeft
   return $ down && checkCollisionPointRec pos rec_
 
 turnUpdate :: Rectangle -> IORef Player -> Player -> TileState -> IO TileState
