@@ -59,7 +59,7 @@ type Board = Vector TileState
 data GameState where
   GameState
     :: { phase :: Phase
-       , mode :: Maybe GameMode
+       , mode :: GameMode
        , singlePlayer :: Player
        , board :: Board
        , playerTurn :: IORef Player
@@ -104,7 +104,7 @@ startup = do
   return $
     GameState
       Menu
-      (Just TwoPlayers)
+      TwoPlayers
       X
       emptyBoard
       turn
@@ -227,7 +227,7 @@ goToMenu = do
   when clicked $ do
     liftIO $ atomicWriteIORef (playerTurn s) X
     gen <- liftIO randomIO
-    put s {phase = Menu, board = emptyBoard, generator = mkStdGen gen}
+    put s {phase = Menu, mode = TwoPlayers, board = emptyBoard, generator = mkStdGen gen}
   return s
 
 game :: StateT GameState IO GameState
@@ -251,7 +251,7 @@ game = do
         case lose of
           Just _ -> return tileState
           _any -> turnUpdate rec_ (playerTurn s) currentPlayer tileState
-  when (isNothing lose && mode s == Just VsAI && currentPlayer /= singlePlayer s) randomMove
+  when (isNothing lose && mode s == VsAI && currentPlayer /= singlePlayer s) randomMove
   s' <- get
   board' <- liftIO $ V.imapM f (board s')
   put $ s' {board = board'}
@@ -283,8 +283,8 @@ menu = do
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
           <*> ZipList
             [ s {phase = Game}
-            , s {mode = Just TwoPlayers}
-            , s {mode = Just VsAI}
+            , s {mode = TwoPlayers}
+            , s {mode = VsAI}
             , s {singlePlayer = X}
             , s {singlePlayer = O}
             ]
@@ -294,8 +294,8 @@ menu = do
     drawRectangleRec startRec green
     drawText "Start" (round $ inlineCenter $ fromIntegral startSize) 500 30 black
     case gameMode of
-      Just TwoPlayers -> drawRectangleLinesEx twoPlayersRec 2 black
-      Just VsAI -> do
+      TwoPlayers -> drawRectangleLinesEx twoPlayersRec 2 black
+      VsAI -> do
         drawRectangleLinesEx vsAIRec 2 black
         drawText "Player:" (round center + 10) 160 30 black
         drawText "X" (round center + 20) 200 30 black
@@ -303,7 +303,6 @@ menu = do
         case singlePlayer s of
           X -> drawRectangleLinesEx xRec 2 black
           O -> drawRectangleLinesEx oRec 2 black
-      Nothing -> return ()
 
   sequence_ clickUpdates
   return s
