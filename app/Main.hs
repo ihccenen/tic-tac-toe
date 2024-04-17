@@ -138,19 +138,6 @@ turnUpdate rec_ turnRef currentPlayer tileState = do
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
 
-checkRestart :: StateT GameState IO GameState
-checkRestart = do
-  s <- get
-  z <- liftIO (fromIntegral <$> measureText "Restart" 30 :: IO Float)
-  let rec_ = Rectangle (inlineCenter $ z + 20) 520 (z + 20) 40
-  liftIO $ drawRectangleRec rec_ gray
-  liftIO $ drawText "Restart" (round $ inlineCenter z) 525 30 black
-  clicked <- liftIO $ clickedRec rec_
-  when clicked $ do
-    liftIO $ atomicWriteIORef (playerTurn s) X
-    put s {board = emptyBoard}
-  return s
-
 checkWin :: Board -> Player -> Maybe End
 checkWin board' player
   -- horizontals
@@ -215,6 +202,34 @@ randomMove = do
         , generator = nextGen
         }
 
+checkRestart :: StateT GameState IO ()
+checkRestart = do
+  s <- get
+  z <- liftIO (fromIntegral <$> measureText "Restart" 30 :: IO Float)
+  let center = inlineCenter 0
+      rec_ = Rectangle (center - z - 30) 520 (z + 20) 40
+  liftIO $ drawRectangleRec rec_ gray
+  liftIO $ drawText "Restart" (round $ center - z - 20) 525 30 black
+  clicked <- liftIO $ clickedRec rec_
+  when clicked $ do
+    liftIO $ atomicWriteIORef (playerTurn s) X
+    put s {board = emptyBoard}
+
+goToMenu :: StateT GameState IO GameState
+goToMenu = do
+  s <- get
+  z <- liftIO (fromIntegral <$> measureText "Menu" 30 :: IO Float)
+  let center = inlineCenter 0
+      rec_ = Rectangle (center + 10) 520 (z + 20) 40
+  liftIO $ drawRectangleRec rec_ gray
+  liftIO $ drawText "Menu" (round center + 20) 525 30 black
+  clicked <- liftIO $ clickedRec rec_
+  when clicked $ do
+    liftIO $ atomicWriteIORef (playerTurn s) X
+    gen <- liftIO randomIO
+    put s {phase = Menu, board = emptyBoard, generator = mkStdGen gen}
+  return s
+
 game :: StateT GameState IO GameState
 game = do
   s <- get
@@ -242,6 +257,7 @@ game = do
   put $ s' {board = board'}
   gameText
   checkRestart
+  goToMenu
 
 updateGameStateWhenClicked :: Rectangle -> GameState -> StateT GameState IO ()
 updateGameStateWhenClicked rec_ newState = do
