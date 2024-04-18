@@ -202,8 +202,8 @@ randomMove = do
         , generator = nextGen
         }
 
-checkRestart :: StateT GameState IO ()
-checkRestart = do
+restartGame :: StateT GameState IO ()
+restartGame = do
   s <- get
   z <- liftIO (fromIntegral <$> measureText "Restart" 30 :: IO Float)
   let center = inlineCenter 0
@@ -256,7 +256,7 @@ game = do
   board' <- liftIO $ V.imapM f (board s')
   put $ s' {board = board'}
   gameText
-  checkRestart
+  restartGame
   goToMenu
 
 updateGameStateWhenClicked :: Rectangle -> GameState -> StateT GameState IO ()
