@@ -9,7 +9,6 @@ import Control.Applicative (ZipList (ZipList))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
-import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
 import Data.Maybe (isJust, isNothing)
 import Data.Vector (Vector, (!), (//))
 import Data.Vector qualified as V
@@ -63,11 +62,6 @@ data Phase where
   Menu :: Phase
   Game :: Phase
 
-data GameMode where
-  TwoPlayers :: GameMode
-  VsAI :: GameMode
-  deriving (Eq)
-
 data Player where
   X :: Player
   O :: Player
@@ -96,10 +90,9 @@ type Board = Vector TileState
 data GameState where
   GameState
     :: { phase :: Phase
-       , mode :: GameMode
-       , singlePlayer :: Player
+       , singlePlayer :: Maybe Player
        , board :: Board
-       , playerTurn :: IORef Player
+       , playerTurn :: Player
        , end :: Maybe End
        , generator :: StdGen
        , xTexture :: Texture
@@ -121,7 +114,6 @@ startup :: IO GameState
 startup = do
   w <- initWindow screenWidth screenHeight "tic-tac-toe"
   setTargetFPS 60
-  turn <- newIORef X
   gen <- randomIO
   x <- loadRenderTexture 80 80 w
   o <- loadRenderTexture 100 100 w
@@ -142,10 +134,9 @@ startup = do
   return $
     GameState
       Menu
-      TwoPlayers
-      X
+      Nothing
       emptyBoard
-      turn
+      X
       Nothing
       (mkStdGen gen)
       (renderTexture'texture x)
@@ -193,10 +184,9 @@ getWinner O = Winner X
 checkGameEnd :: StateT GameState IO ()
 checkGameEnd = do
   s <- get
-  p <- liftIO $ readIORef $ playerTurn s
   let board' = board s
       result
-        | Just winner <- checkWin board' (nextPlayer p) = put $ s {end = Just winner}
+        | Just winner <- checkWin board' (nextPlayer $ playerTurn s) = put $ s {end = Just winner}
         | checkDraw board' = put $ s {end = Just Draw}
         | otherwise = return ()
   result
@@ -204,26 +194,24 @@ checkGameEnd = do
 gameText :: StateT GameState IO ()
 gameText = do
   s <- get
-  player <- liftIO $ readIORef (playerTurn s)
   let (text, color) = case end s of
         Just result -> (show result, blue)
-        Nothing -> (show player <> " turn", black)
+        Nothing -> (show (playerTurn s) <> " turn", black)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
 
 randomMove :: StateT GameState IO ()
 randomMove = do
   s <- get
-  currentPlayer <- liftIO $ readIORef $ playerTurn s
   let ai = playerTurn s
       gen = generator s
       empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
       (i, nextGen) = randomR (0, V.length empty - 1) gen
-  unless (isJust (end s) || mode s /= VsAI || currentPlayer == singlePlayer s || V.null empty) $ do
-    liftIO $ atomicWriteIORef ai (nextPlayer currentPlayer)
+  unless (isJust (end s) || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
     put $
       s
-        { board = V.update (board s) (V.singleton (fst $ empty ! i, Has currentPlayer))
+        { board = board s // [(fst $ empty ! i, Has ai)]
+        , playerTurn = nextPlayer ai
         , generator = nextGen
         }
 
@@ -237,8 +225,7 @@ restartGame = do
   liftIO $ drawText "Restart" (round $ center - z - 20) 525 30 black
   clicked <- liftIO $ clickedRec rec_
   when clicked $ do
-    liftIO $ atomicWriteIORef (playerTurn s) X
-    put s {board = emptyBoard, end = Nothing}
+    put s {board = emptyBoard, playerTurn = X, end = Nothing}
 
 goToMenu :: StateT GameState IO GameState
 goToMenu = do
@@ -250,9 +237,16 @@ goToMenu = do
   liftIO $ drawText "Menu" (round center + 20) 525 30 black
   clicked <- liftIO $ clickedRec rec_
   when clicked $ do
-    liftIO $ atomicWriteIORef (playerTurn s) X
     gen <- liftIO randomIO
-    put s {phase = Menu, mode = TwoPlayers, board = emptyBoard, end = Nothing, generator = mkStdGen gen}
+    put
+      s
+        { phase = Menu
+        , singlePlayer = Nothing
+        , board = emptyBoard
+        , playerTurn = X
+        , end = Nothing
+        , generator = mkStdGen gen
+        }
   return s
 
 drawBoard :: StateT GameState IO (Vector Rectangle)
@@ -276,18 +270,20 @@ drawBoard = do
 play :: Vector Rectangle -> Vector2 -> StateT GameState IO ()
 play recs_ point = do
   s <- get
-  currentPlayer <- liftIO $ readIORef $ playerTurn s
   down <- liftIO $ isMouseButtonPressed MouseButtonLeft
-  let f board' idx rec_
+  let currentPlayer = playerTurn s
+      board' = board s
+      f :: Maybe Int -> Int -> Rectangle -> Maybe Int
+      f i idx rec_
         | isNothing (end s) && down && checkCollisionPointRec point rec_ =
             case board' ! idx of
-              Empty -> do
-                atomicWriteIORef (playerTurn s) (nextPlayer currentPlayer)
-                return $ board s // [(idx, Has currentPlayer)]
-              _any -> return board'
-        | otherwise = return board'
-  b <- liftIO $ V.ifoldM' f (board s) recs_
-  put $ s {board = b}
+              Empty -> Just idx
+              _any -> i
+        | otherwise = i
+  case V.ifoldl' f Nothing recs_ of
+    Nothing -> return ()
+    Just idx -> do
+      put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer}
 
 game :: StateT GameState IO GameState
 game = do
@@ -311,8 +307,7 @@ menu = do
   tPSize <- liftIO $ measureText "Two Players" 30
   vsAISize <- liftIO $ measureText "Vs AI" 30
   startSize <- liftIO $ measureText "Start" 30
-  let gameMode = mode s
-      center = inlineCenter 0
+  let center = inlineCenter 0
       twoPlayersRec = Rectangle (center - fromIntegral (tPSize + 30)) 100 (fromIntegral tPSize + 20) 50
       vsAIRec = Rectangle (center + 10) 100 (fromIntegral vsAISize + 20) 50
       startRec =
@@ -324,24 +319,24 @@ menu = do
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
           <*> ZipList
             [ s {phase = Game}
-            , s {mode = TwoPlayers}
-            , s {mode = VsAI}
-            , s {singlePlayer = X}
-            , s {singlePlayer = O}
+            , s {singlePlayer = Nothing}
+            , s {singlePlayer = Just X}
+            , s {singlePlayer = Just X}
+            , s {singlePlayer = Just O}
             ]
   liftIO $ do
     drawText "Two Players" (round center - (tPSize + 20)) 110 30 black
     drawText "Vs AI" (round center + 20) 110 30 black
     drawRectangleRec startRec green
     drawText "Start" (round $ inlineCenter $ fromIntegral startSize) 500 30 black
-    case gameMode of
-      TwoPlayers -> drawRectangleLinesEx twoPlayersRec 2 black
-      VsAI -> do
+    case singlePlayer s of
+      Nothing -> drawRectangleLinesEx twoPlayersRec 2 black
+      Just p -> do
         drawRectangleLinesEx vsAIRec 2 black
         drawText "Player:" (round center + 10) 160 30 black
         drawText "X" (round center + 20) 200 30 black
         drawText "O" (round center + vsAISize) 200 30 black
-        case singlePlayer s of
+        case p of
           X -> drawRectangleLinesEx xRec 2 black
           O -> drawRectangleLinesEx oRec 2 black
   sequence_ clickUpdates
