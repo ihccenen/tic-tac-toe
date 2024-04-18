@@ -10,17 +10,54 @@ import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
 import Data.IORef (IORef, atomicWriteIORef, newIORef, readIORef)
-import Data.Maybe (isNothing)
-import Data.Vector (Vector, (!))
+import Data.Maybe (isJust, isNothing)
+import Data.Vector (Vector, (!), (//))
 import Data.Vector qualified as V
 import Raylib.Core
+  ( beginTextureMode
+  , clearBackground
+  , closeWindow
+  , endTextureMode
+  , getMousePosition
+  , initWindow
+  , isMouseButtonPressed
+  , setTargetFPS
+  , windowShouldClose
+  )
 import Raylib.Core.Shapes
-import Raylib.Core.Text
+  ( checkCollisionPointRec
+  , drawRectangleLinesEx
+  , drawRectangleRec
+  , drawTriangle
+  )
+import Raylib.Core.Text (drawText, measureText)
 import Raylib.Core.Textures
+  ( drawTextureRec
+  , loadRenderTexture
+  , unloadTexture
+  )
 import Raylib.Types
-import Raylib.Util
+  ( MouseButton (MouseButtonLeft)
+  , Rectangle (Rectangle)
+  , RenderTexture (renderTexture'texture)
+  , Texture
+  , Vector2 (Vector2)
+  )
+import Raylib.Util (WindowResources, drawing, raylibApplication)
 import Raylib.Util.Colors
+  ( black
+  , blue
+  , gray
+  , green
+  , rayWhite
+  , white
+  )
 import System.Random
+  ( Random (randomR)
+  , StdGen
+  , mkStdGen
+  , randomIO
+  )
 
 data Phase where
   Menu :: Phase
@@ -63,6 +100,7 @@ data GameState where
        , singlePlayer :: Player
        , board :: Board
        , playerTurn :: IORef Player
+       , end :: Maybe End
        , generator :: StdGen
        , xTexture :: Texture
        , oTexture :: Texture
@@ -108,6 +146,7 @@ startup = do
       X
       emptyBoard
       turn
+      Nothing
       (mkStdGen gen)
       (renderTexture'texture x)
       (renderTexture'texture o)
@@ -122,18 +161,6 @@ clickedRec rec_ = do
   pos <- getMousePosition
   down <- isMouseButtonPressed MouseButtonLeft
   return $ down && checkCollisionPointRec pos rec_
-
-turnUpdate :: Rectangle -> IORef Player -> Player -> TileState -> IO TileState
-turnUpdate rec_ turnRef currentPlayer tileState = do
-  clicked <- clickedRec rec_
-  case tileState of
-    Empty ->
-      if clicked
-        then do
-          atomicWriteIORef turnRef (nextPlayer currentPlayer)
-          return $ Has currentPlayer
-        else return tileState
-    _any -> return tileState
 
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
@@ -163,23 +190,22 @@ getWinner :: Player -> End
 getWinner X = Winner X
 getWinner O = Winner X
 
-checkGameEnd :: StateT GameState IO (Maybe End)
+checkGameEnd :: StateT GameState IO ()
 checkGameEnd = do
   s <- get
   p <- liftIO $ readIORef $ playerTurn s
   let board' = board s
       result
-        | Just winner <- checkWin board' (nextPlayer p) = Just winner
-        | checkDraw board' = Just Draw
-        | otherwise = Nothing
-  return result
+        | Just winner <- checkWin board' (nextPlayer p) = put $ s {end = Just winner}
+        | checkDraw board' = put $ s {end = Just Draw}
+        | otherwise = return ()
+  result
 
 gameText :: StateT GameState IO ()
 gameText = do
   s <- get
   player <- liftIO $ readIORef (playerTurn s)
-  ended <- checkGameEnd
-  let (text, color) = case ended of
+  let (text, color) = case end s of
         Just result -> (show result, blue)
         Nothing -> (show player <> " turn", black)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
@@ -188,13 +214,12 @@ gameText = do
 randomMove :: StateT GameState IO ()
 randomMove = do
   s <- get
+  currentPlayer <- liftIO $ readIORef $ playerTurn s
   let ai = playerTurn s
       gen = generator s
-      empty :: Vector (Int, TileState)
       empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
       (i, nextGen) = randomR (0, V.length empty - 1) gen
-  unless (V.null empty) $ do
-    currentPlayer <- liftIO $ readIORef ai
+  unless (isJust (end s) || mode s /= VsAI || currentPlayer == singlePlayer s || V.null empty) $ do
     liftIO $ atomicWriteIORef ai (nextPlayer currentPlayer)
     put $
       s
@@ -213,7 +238,7 @@ restartGame = do
   clicked <- liftIO $ clickedRec rec_
   when clicked $ do
     liftIO $ atomicWriteIORef (playerTurn s) X
-    put s {board = emptyBoard}
+    put s {board = emptyBoard, end = Nothing}
 
 goToMenu :: StateT GameState IO GameState
 goToMenu = do
@@ -227,34 +252,50 @@ goToMenu = do
   when clicked $ do
     liftIO $ atomicWriteIORef (playerTurn s) X
     gen <- liftIO randomIO
-    put s {phase = Menu, mode = TwoPlayers, board = emptyBoard, generator = mkStdGen gen}
+    put s {phase = Menu, mode = TwoPlayers, board = emptyBoard, end = Nothing, generator = mkStdGen gen}
   return s
 
-game :: StateT GameState IO GameState
-game = do
+drawBoard :: StateT GameState IO (Vector Rectangle)
+drawBoard = do
   s <- get
-  currentPlayer <- liftIO $ readIORef $ playerTurn s
-  let lose = checkWin (board s) (nextPlayer currentPlayer)
-      f :: Int -> TileState -> IO TileState
-      f idx tileState = do
+  let f idx tileState = do
         let i = idx `div` 3
             j = idx `rem` 3
-            x' = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
+            x = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
             y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
-            rec_ = Rectangle x' y 100 100
+            rec_ = Rectangle x y 100 100
         case tileState of
           Empty -> drawRectangleRec rec_ gray
           Has X -> do
             drawRectangleRec rec_ gray
-            drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x' + 10) (y + 10)) white
-          Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x' y) white
-        case lose of
-          Just _ -> return tileState
-          _any -> turnUpdate rec_ (playerTurn s) currentPlayer tileState
-  when (isNothing lose && mode s == VsAI && currentPlayer /= singlePlayer s) randomMove
-  s' <- get
-  board' <- liftIO $ V.imapM f (board s')
-  put $ s' {board = board'}
+            drawTextureRec (xTexture s) (Rectangle 0 0 80 (-80)) (Vector2 (x + 10) (y + 10)) white
+          Has O -> drawTextureRec (oTexture s) (Rectangle 0 0 100 (-100)) (Vector2 x y) white
+        return rec_
+  liftIO $ V.imapM f (board s)
+
+play :: Vector Rectangle -> Vector2 -> StateT GameState IO ()
+play recs_ point = do
+  s <- get
+  currentPlayer <- liftIO $ readIORef $ playerTurn s
+  down <- liftIO $ isMouseButtonPressed MouseButtonLeft
+  let f board' idx rec_
+        | isNothing (end s) && down && checkCollisionPointRec point rec_ =
+            case board' ! idx of
+              Empty -> do
+                atomicWriteIORef (playerTurn s) (nextPlayer currentPlayer)
+                return $ board s // [(idx, Has currentPlayer)]
+              _any -> return board'
+        | otherwise = return board'
+  b <- liftIO $ V.ifoldM' f (board s) recs_
+  put $ s {board = b}
+
+game :: StateT GameState IO GameState
+game = do
+  recs <- drawBoard
+  pos <- liftIO getMousePosition
+  play recs pos
+  checkGameEnd
+  randomMove
   gameText
   restartGame
   goToMenu
@@ -303,7 +344,6 @@ menu = do
         case singlePlayer s of
           X -> drawRectangleLinesEx xRec 2 black
           O -> drawRectangleLinesEx oRec 2 black
-
   sequence_ clickUpdates
   return s
 
