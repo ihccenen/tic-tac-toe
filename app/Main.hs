@@ -49,6 +49,7 @@ import Raylib.Util.Colors
   , gray
   , green
   , rayWhite
+  , red
   , white
   )
 import System.Random
@@ -177,10 +178,6 @@ checkWin board' player
 checkDraw :: Board -> Bool
 checkDraw = V.null . V.filter (== Empty)
 
-getWinner :: Player -> End
-getWinner X = Winner X
-getWinner O = Winner X
-
 checkGameEnd :: StateT GameState IO ()
 checkGameEnd = do
   s <- get
@@ -304,16 +301,16 @@ updateGameStateWhenClicked rec_ newState = do
 menu :: StateT GameState IO GameState
 menu = do
   s <- get
-  tPSize <- liftIO $ measureText "Two Players" 30
-  vsAISize <- liftIO $ measureText "Vs AI" 30
-  startSize <- liftIO $ measureText "Start" 30
+  tPSize <- liftIO $ fromIntegral <$> measureText "Two Players" 30
+  vsAISize <- liftIO $ fromIntegral <$> measureText "Vs AI" 30
+  startSize <- liftIO $ fromIntegral <$> measureText "Start" 30
   let center = inlineCenter 0
-      twoPlayersRec = Rectangle (center - fromIntegral (tPSize + 30)) 100 (fromIntegral tPSize + 20) 50
-      vsAIRec = Rectangle (center + 10) 100 (fromIntegral vsAISize + 20) 50
+      twoPlayersRec = Rectangle (center - (tPSize + 30)) 100 (tPSize + 20) 50
+      vsAIRec = Rectangle (center + 10) 100 (vsAISize + 20) 50
       startRec =
-        Rectangle (inlineCenter (fromIntegral startSize) - 10) (500 - 10) (fromIntegral startSize + 20) 50
+        Rectangle (center - startSize - 30) 490 (startSize + 20) 40
       xRec = Rectangle (center + 20 - 6) (200 - 2) 30 30
-      oRec = Rectangle (center + fromIntegral vsAISize - 6) (200 - 2) 30 30
+      oRec = Rectangle (center + vsAISize - 6) (200 - 2) 30 30
       clickUpdates =
         updateGameStateWhenClicked
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
@@ -325,17 +322,17 @@ menu = do
             , s {singlePlayer = Just O}
             ]
   liftIO $ do
-    drawText "Two Players" (round center - (tPSize + 20)) 110 30 black
+    drawText "Two Players" (round $ center - (tPSize + 20)) 110 30 black
     drawText "Vs AI" (round center + 20) 110 30 black
     drawRectangleRec startRec green
-    drawText "Start" (round $ inlineCenter $ fromIntegral startSize) 500 30 black
+    drawText "Start" (round $ center - startSize - 20) 495 30 black
     case singlePlayer s of
       Nothing -> drawRectangleLinesEx twoPlayersRec 2 black
       Just p -> do
         drawRectangleLinesEx vsAIRec 2 black
         drawText "Player:" (round center + 10) 160 30 black
         drawText "X" (round center + 20) 200 30 black
-        drawText "O" (round center + vsAISize) 200 30 black
+        drawText "O" (round $ center + vsAISize) 200 30 black
         case p of
           X -> drawRectangleLinesEx xRec 2 black
           O -> drawRectangleLinesEx oRec 2 black
@@ -359,7 +356,17 @@ mainLoop s =
     )
 
 shouldClose :: GameState -> IO Bool
-shouldClose _ = windowShouldClose
+shouldClose s = do
+  z <- fromIntegral <$> measureText "Exit" 30
+  let center = inlineCenter 0
+      (x, y) = case phase s of
+        Menu -> (inlineCenter z + z - 10, 500 - 10)
+        Game -> (center + 175, 520)
+      rec_ = Rectangle x y (z + 20) 40
+  drawRectangleRec rec_ red
+  drawText "Exit" (round x + 10) (round y + 5) 30 black
+  clicked <- clickedRec rec_
+  (|| clicked) <$> windowShouldClose
 
 teardown :: GameState -> IO ()
 teardown s = do
