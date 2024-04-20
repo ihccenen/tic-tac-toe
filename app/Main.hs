@@ -10,6 +10,7 @@ import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
 import Data.Maybe (isJust, isNothing)
+import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import Data.Vector (Vector, (!), (//))
 import Data.Vector qualified as V
 import Raylib.Core
@@ -92,6 +93,7 @@ data GameState where
   GameState
     :: { phase :: Phase
        , singlePlayer :: Maybe Player
+       , nextAIPlay :: Maybe UTCTime
        , board :: Board
        , playerTurn :: Player
        , end :: Maybe End
@@ -135,6 +137,7 @@ startup = do
   return $
     GameState
       Menu
+      Nothing
       Nothing
       emptyBoard
       X
@@ -200,11 +203,12 @@ gameText = do
 randomMove :: StateT GameState IO ()
 randomMove = do
   s <- get
+  now <- Just <$> liftIO getCurrentTime
   let ai = playerTurn s
       gen = generator s
       empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
       (i, nextGen) = randomR (0, V.length empty - 1) gen
-  unless (isJust (end s) || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
+  unless (now < nextAIPlay s || isJust (end s) || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
     put $
       s
         { board = board s // [(fst $ empty ! i, Has ai)]
@@ -277,10 +281,12 @@ play recs_ point = do
               Empty -> Just idx
               _any -> i
         | otherwise = i
-  case V.ifoldl' f Nothing recs_ of
+  when (isNothing (singlePlayer s) || (Just (playerTurn s) == singlePlayer s)) $ case V.ifoldl' f Nothing recs_ of
     Nothing -> return ()
     Just idx -> do
-      put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer}
+      now <- liftIO getCurrentTime
+      let n = addUTCTime 1 now
+      put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer, nextAIPlay = n <$ nextAIPlay s}
 
 game :: StateT GameState IO GameState
 game = do
@@ -304,6 +310,7 @@ menu = do
   tPSize <- liftIO $ fromIntegral <$> measureText "Two Players" 30
   vsAISize <- liftIO $ fromIntegral <$> measureText "Vs AI" 30
   startSize <- liftIO $ fromIntegral <$> measureText "Start" 30
+  now <- liftIO getCurrentTime
   let center = inlineCenter 0
       twoPlayersRec = Rectangle (center - (tPSize + 30)) 100 (tPSize + 20) 50
       vsAIRec = Rectangle (center + 10) 100 (vsAISize + 20) 50
@@ -311,15 +318,15 @@ menu = do
         Rectangle (center - startSize - 30) 490 (startSize + 20) 40
       xRec = Rectangle (center + 20 - 6) (200 - 2) 30 30
       oRec = Rectangle (center + vsAISize - 6) (200 - 2) 30 30
-      clickUpdates =
+      clickUpdates = do
         updateGameStateWhenClicked
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
           <*> ZipList
             [ s {phase = Game}
-            , s {singlePlayer = Nothing}
-            , s {singlePlayer = Just X}
-            , s {singlePlayer = Just X}
-            , s {singlePlayer = Just O}
+            , s {singlePlayer = Nothing, nextAIPlay = Nothing}
+            , s {singlePlayer = Just X, nextAIPlay = Just $ addUTCTime 1 now}
+            , s {singlePlayer = Just X, nextAIPlay = Just $ addUTCTime 1 now}
+            , s {singlePlayer = Just O, nextAIPlay = Just $ addUTCTime 1 now}
             ]
   liftIO $ do
     drawText "Two Players" (round $ center - (tPSize + 20)) 110 30 black
