@@ -9,7 +9,7 @@ import Control.Applicative (ZipList (ZipList))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.State (StateT (runStateT), get, put)
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (isNothing)
 import Data.Time (UTCTime, addUTCTime, getCurrentTime)
 import Data.Vector (Vector, (!), (//))
 import Data.Vector qualified as V
@@ -78,14 +78,11 @@ data TileState where
   Has :: Player -> TileState
   deriving (Eq)
 
-data End where
-  Draw :: End
-  Winner :: Player -> End
+data MatchStatus where
+  Ongoing :: MatchStatus
+  Draw :: MatchStatus
+  Winner :: Player -> MatchStatus
   deriving (Eq)
-
-instance Show End where
-  show Draw = "Draw"
-  show (Winner p) = show p <> " wins"
 
 type Board = Vector TileState
 
@@ -96,7 +93,7 @@ data GameState where
        , nextAIPlay :: Maybe UTCTime
        , board :: Board
        , playerTurn :: Player
-       , end :: Maybe End
+       , matchStatus :: MatchStatus
        , generator :: StdGen
        , xTexture :: Texture
        , oTexture :: Texture
@@ -141,7 +138,7 @@ startup = do
       Nothing
       emptyBoard
       X
-      Nothing
+      Ongoing
       (mkStdGen gen)
       (renderTexture'texture x)
       (renderTexture'texture o)
@@ -160,7 +157,7 @@ clickedRec rec_ = do
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
 
-checkWin :: Board -> Player -> Maybe End
+checkWin :: Board -> Player -> Maybe Player
 checkWin board' player
   -- horizontals
   | board' ! 0 == Has player && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2
@@ -175,28 +172,33 @@ checkWin board' player
       -- diagonals
       board' ! 0 == Has player && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8
       || board' ! 2 == Has player && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 =
-      Just $ Winner player
+      Just player
   | otherwise = Nothing
 
 checkDraw :: Board -> Bool
 checkDraw = V.null . V.filter (== Empty)
 
-checkGameEnd :: StateT GameState IO ()
-checkGameEnd = do
+gameEnd :: StateT GameState IO ()
+gameEnd = do
   s <- get
   let board' = board s
-      result
-        | Just winner <- checkWin board' (nextPlayer $ playerTurn s) = put $ s {end = Just winner}
-        | checkDraw board' = put $ s {end = Just Draw}
-        | otherwise = return ()
-  result
+  case checkWin board' (nextPlayer $ playerTurn s) of
+    Nothing -> when (checkDraw board') $ put $ s {matchStatus = Draw}
+    Just p -> put $ s {matchStatus = Winner p}
 
 gameText :: StateT GameState IO ()
 gameText = do
   s <- get
-  let (text, color) = case end s of
-        Just result -> (show result, blue)
-        Nothing -> (show (playerTurn s) <> " turn", black)
+  let singlePlayerTurn = case singlePlayer s of
+        Nothing -> show (playerTurn s) <> " turn"
+        Just p -> (if p == playerTurn s then "Your Turn, " else "AI turn, ") <> show (playerTurn s)
+      playerWinText w = case singlePlayer s of
+        Just p -> (if w == p then "You win, " else "AI win, ") <> show w
+        Nothing -> show w <> " wins"
+      (text, color) = case matchStatus s of
+        Ongoing -> (singlePlayerTurn, black)
+        Draw -> ("Draw", blue)
+        Winner w -> (playerWinText w, green)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
 
@@ -208,13 +210,14 @@ randomMove = do
       gen = generator s
       empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
       (i, nextGen) = randomR (0, V.length empty - 1) gen
-  unless (now < nextAIPlay s || isJust (end s) || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
+  unless (now < nextAIPlay s || Ongoing /= matchStatus s || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
     put $
       s
         { board = board s // [(fst $ empty ! i, Has ai)]
         , playerTurn = nextPlayer ai
         , generator = nextGen
         }
+    gameEnd
 
 restartGame :: StateT GameState IO ()
 restartGame = do
@@ -226,7 +229,7 @@ restartGame = do
   liftIO $ drawText "Restart" (round $ center - z - 20) 525 30 black
   clicked <- liftIO $ clickedRec rec_
   when clicked $ do
-    put s {board = emptyBoard, playerTurn = X, end = Nothing}
+    put s {board = emptyBoard, playerTurn = X, matchStatus = Ongoing}
 
 goToMenu :: StateT GameState IO GameState
 goToMenu = do
@@ -245,7 +248,7 @@ goToMenu = do
         , singlePlayer = Nothing
         , board = emptyBoard
         , playerTurn = X
-        , end = Nothing
+        , matchStatus = Ongoing
         , generator = mkStdGen gen
         }
   return s
@@ -276,7 +279,7 @@ play recs_ point = do
       board' = board s
       f :: Maybe Int -> Int -> Rectangle -> Maybe Int
       f i idx rec_
-        | isNothing (end s) && down && checkCollisionPointRec point rec_ =
+        | Ongoing == matchStatus s && down && checkCollisionPointRec point rec_ =
             case board' ! idx of
               Empty -> Just idx
               _any -> i
@@ -287,13 +290,13 @@ play recs_ point = do
       now <- liftIO getCurrentTime
       let n = addUTCTime 1 now
       put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer, nextAIPlay = n <$ nextAIPlay s}
+      gameEnd
 
 game :: StateT GameState IO GameState
 game = do
   recs <- drawBoard
   pos <- liftIO getMousePosition
   play recs pos
-  checkGameEnd
   randomMove
   gameText
   restartGame
