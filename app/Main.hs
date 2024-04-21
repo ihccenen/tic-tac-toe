@@ -327,9 +327,9 @@ menu = do
           <*> ZipList
             [ s {phase = Game}
             , s {singlePlayer = Nothing, nextAIPlay = Nothing}
-            , s {singlePlayer = Just X, nextAIPlay = Just $ addUTCTime 1 now}
-            , s {singlePlayer = Just X, nextAIPlay = Just $ addUTCTime 1 now}
-            , s {singlePlayer = Just O, nextAIPlay = Just $ addUTCTime 1 now}
+            , s {singlePlayer = Just X, nextAIPlay = Just now}
+            , s {singlePlayer = Just X, nextAIPlay = Just now}
+            , s {singlePlayer = Just O, nextAIPlay = Just now}
             ]
   liftIO $ do
     drawText "Two Players" (round $ center - (tPSize + 20)) 110 30 black
