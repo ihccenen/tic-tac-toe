@@ -279,12 +279,12 @@ play recs_ point = do
       board' = board s
       f :: Maybe Int -> Int -> Rectangle -> Maybe Int
       f i idx rec_
-        | Ongoing == matchStatus s && down && checkCollisionPointRec point rec_ =
+        | down && checkCollisionPointRec point rec_ =
             case board' ! idx of
               Empty -> Just idx
               _any -> i
         | otherwise = i
-  when (isNothing (singlePlayer s) || (Just (playerTurn s) == singlePlayer s)) $ case V.ifoldl' f Nothing recs_ of
+  when (Ongoing == matchStatus s && (isNothing (singlePlayer s) || (Just (playerTurn s) == singlePlayer s))) $ case V.ifoldl' f Nothing recs_ of
     Nothing -> return ()
     Just idx -> do
       now <- liftIO getCurrentTime
