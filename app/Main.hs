@@ -26,6 +26,7 @@ import Raylib.Core
   )
 import Raylib.Core.Shapes
   ( checkCollisionPointRec
+  , drawLineEx
   , drawRectangleLinesEx
   , drawRectangleRec
   , drawTriangle
@@ -51,6 +52,7 @@ import Raylib.Util.Colors
   , green
   , rayWhite
   , red
+  , violet
   , white
   )
 import System.Random
@@ -78,10 +80,14 @@ data TileState where
   Has :: Player -> TileState
   deriving (Eq)
 
+data Line where
+  Line :: {start :: Int, end :: Int, startPos :: Vector2, endPos :: Vector2} -> Line
+  deriving (Eq)
+
 data MatchStatus where
   Ongoing :: MatchStatus
   Draw :: MatchStatus
-  Winner :: Player -> MatchStatus
+  Winner :: Player -> Line -> MatchStatus
   deriving (Eq)
 
 type Board = Vector TileState
@@ -157,34 +163,64 @@ clickedRec rec_ = do
 inlineCenter :: Float -> Float
 inlineCenter z = screenWidth / 2 - z / 2
 
-checkWin :: Board -> Player -> Maybe Player
+checkWin :: Board -> Player -> Maybe (Player, (Int, Int))
 checkWin board' player
   -- horizontals
-  | board' ! 0 == Has player && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2
-      || board' ! 3 == Has player && board' ! 3 == board' ! 4 && board' ! 3 == board' ! 5
-      || board' ! 6 == Has player && board' ! 6 == board' ! 7 && board' ! 6 == board' ! 8
-      ||
-      -- verticals
-      board' ! 0 == Has player && board' ! 0 == board' ! 3 && board' ! 0 == board' ! 6
-      || board' ! 1 == Has player && board' ! 1 == board' ! 4 && board' ! 1 == board' ! 7
-      || board' ! 2 == Has player && board' ! 2 == board' ! 5 && board' ! 2 == board' ! 8
-      ||
-      -- diagonals
-      board' ! 0 == Has player && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8
-      || board' ! 2 == Has player && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 =
-      Just player
+  | board' ! 0 == Has player && board' ! 0 == board' ! 1 && board' ! 0 == board' ! 2 = Just (player, (0, 2))
+  | board' ! 3 == Has player && board' ! 3 == board' ! 4 && board' ! 3 == board' ! 5 = Just (player, (3, 5))
+  | board' ! 6 == Has player && board' ! 6 == board' ! 7 && board' ! 6 == board' ! 8 = Just (player, (6, 8))
+  -- verticals
+  | board' ! 0 == Has player && board' ! 0 == board' ! 3 && board' ! 0 == board' ! 6 = Just (player, (0, 6))
+  | board' ! 1 == Has player && board' ! 1 == board' ! 4 && board' ! 1 == board' ! 7 = Just (player, (1, 7))
+  | board' ! 2 == Has player && board' ! 2 == board' ! 5 && board' ! 2 == board' ! 8 = Just (player, (2, 8))
+  -- diagonals
+  | board' ! 0 == Has player && board' ! 0 == board' ! 4 && board' ! 0 == board' ! 8 = Just (player, (0, 8))
+  | board' ! 2 == Has player && board' ! 2 == board' ! 4 && board' ! 2 == board' ! 6 = Just (player, (2, 6))
   | otherwise = Nothing
 
 checkDraw :: Board -> Bool
 checkDraw = V.null . V.filter (== Empty)
 
+getGridPos :: Int -> (Float, Float)
+getGridPos idx = (x, y)
+  where
+    i = idx `div` 3
+    j = idx `rem` 3
+    x = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
+    y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
+
+startLine :: (Int, Int) -> Vector2
+startLine (start', end') = Vector2 x' y'
+  where
+    (x, y) = getGridPos start'
+    (x', y') = case end' - start' of
+      2 -> (x, y + 50)
+      6 -> (x + 50, y)
+      4 -> (x + 100, y)
+      _ -> (x, y)
+
 gameEnd :: StateT GameState IO ()
 gameEnd = do
   s <- get
   let board' = board s
+      mkLine se@(x, y) = Line x y (startLine se) (startLine se)
   case checkWin board' (nextPlayer $ playerTurn s) of
     Nothing -> when (checkDraw board') $ put $ s {matchStatus = Draw}
-    Just p -> put $ s {matchStatus = Winner p}
+    Just (p, x) -> put $ s {matchStatus = Winner p (mkLine x)}
+
+drawEndLine :: StateT GameState IO ()
+drawEndLine = do
+  s <- get
+  case matchStatus s of
+    (Winner p line@(Line start' end' startPos' endPos'@(Vector2 endPosX endPosY))) -> do
+      liftIO $ drawLineEx startPos' endPos' 5 violet
+      let newEndPos = case end' - start' of
+            2 -> if endPosX > 567 then endPos' else Vector2 (endPosX + 10) endPosY
+            6 -> if endPosY > 467 then endPos' else Vector2 endPosX (endPosY + 10)
+            4 -> if endPosY > 467 then endPos' else Vector2 (endPosX - 10) (endPosY + 10)
+            _ -> if endPosX > 567 then endPos' else Vector2 (endPosX + 10) (endPosY + 10)
+      put $ s {matchStatus = Winner p (line {endPos = newEndPos})}
+    _any -> return ()
 
 gameText :: StateT GameState IO ()
 gameText = do
@@ -198,7 +234,7 @@ gameText = do
       (text, color) = case matchStatus s of
         Ongoing -> (singlePlayerTurn, black)
         Draw -> ("Draw", blue)
-        Winner w -> (playerWinText w, green)
+        Winner w _ -> (playerWinText w, violet)
   z <- liftIO (fromIntegral <$> measureText text 30 :: IO Float)
   liftIO $ drawText text (round $ inlineCenter z) 50 30 color
 
@@ -257,10 +293,7 @@ drawBoard :: StateT GameState IO (Vector Rectangle)
 drawBoard = do
   s <- get
   let f idx tileState = do
-        let i = idx `div` 3
-            j = idx `rem` 3
-            x = (screenWidth / 2 - 50) + (120 * fromIntegral j) - 120
-            y = (screenHeight / 2 - 50) + (120 * fromIntegral i) - 120
+        let (x, y) = getGridPos idx
             rec_ = Rectangle x y 100 100
         case tileState of
           Empty -> drawRectangleRec rec_ gray
@@ -299,6 +332,7 @@ game = do
   play recs pos
   randomMove
   gameText
+  drawEndLine
   restartGame
   goToMenu
 
