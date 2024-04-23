@@ -95,7 +95,7 @@ data GameState where
   GameState
     :: { phase :: Phase
        , singlePlayer :: Maybe Player
-       , nextAIPlay :: Maybe UTCTime
+       , nextAIPlayTime :: Maybe UTCTime
        , board :: Board
        , playerTurn :: Player
        , matchStatus :: MatchStatus
@@ -243,7 +243,7 @@ randomMove = do
       gen = generator s
       empty = V.filter ((== Empty) . snd) $ V.indexed $ board s
       (i, nextGen) = randomR (0, V.length empty - 1) gen
-  unless (now < nextAIPlay s || Ongoing /= matchStatus s || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
+  unless (now < nextAIPlayTime s || Ongoing /= matchStatus s || isNothing (singlePlayer s) || Just ai == singlePlayer s || V.null empty) $ do
     put $
       s
         { board = board s // [(fst $ empty ! i, Has ai)]
@@ -319,7 +319,7 @@ play recs_ point = do
     Just idx -> do
       now <- liftIO getCurrentTime
       let n = addUTCTime 1 now
-      put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer, nextAIPlay = n <$ nextAIPlay s}
+      put $ s {board = board' // [(idx, Has currentPlayer)], playerTurn = nextPlayer currentPlayer, nextAIPlayTime = n <$ nextAIPlayTime s}
       gameEnd
 
 game :: StateT GameState IO GameState
@@ -357,10 +357,10 @@ menu = do
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
           <*> ZipList
             [ s {phase = Game}
-            , s {singlePlayer = Nothing, nextAIPlay = Nothing}
-            , s {singlePlayer = Just X, nextAIPlay = Just now}
-            , s {singlePlayer = Just X, nextAIPlay = Just now}
-            , s {singlePlayer = Just O, nextAIPlay = Just now}
+            , s {singlePlayer = Nothing, nextAIPlayTime = Nothing}
+            , s {singlePlayer = Just X, nextAIPlayTime = Just now}
+            , s {singlePlayer = Just X, nextAIPlayTime = Just now}
+            , s {singlePlayer = Just O, nextAIPlayTime = Just now}
             ]
   liftIO $ do
     drawText "Two Players" (round $ center - (tPSize + 20)) 110 30 black
