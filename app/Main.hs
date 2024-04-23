@@ -29,7 +29,6 @@ import Raylib.Core.Shapes
   , drawLineEx
   , drawRectangleLinesEx
   , drawRectangleRec
-  , drawTriangle
   )
 import Raylib.Core.Text (drawText, measureText)
 import Raylib.Core.Textures
@@ -125,11 +124,9 @@ startup = do
   o <- loadRenderTexture 100 100 w
 
   beginTextureMode x
-  clearBackground black
-  drawTriangle (Vector2 8 0) (Vector2 (80 / 2) (80 / 2 - 8)) (Vector2 72 0) gray
-  drawTriangle (Vector2 0 8) (Vector2 0 72) (Vector2 (80 / 2 - 8) (80 / 2)) gray
-  drawTriangle (Vector2 (80 / 2) (80 / 2 + 8)) (Vector2 8 80) (Vector2 72 80) gray
-  drawTriangle (Vector2 80 8) (Vector2 (80 / 2 + 8) (80 / 2)) (Vector2 80 72) gray
+  clearBackground gray
+  drawLineEx (Vector2 0 0) (Vector2 80 80) 10 black
+  drawLineEx (Vector2 80 0) (Vector2 0 80) 10 black
   endTextureMode
 
   beginTextureMode o
