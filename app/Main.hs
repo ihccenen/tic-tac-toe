@@ -115,38 +115,6 @@ screenWidth = 800
 screenHeight :: (Num a) => a
 screenHeight = 600
 
-startup :: IO GameState
-startup = do
-  w <- initWindow screenWidth screenHeight "tic-tac-toe"
-  setTargetFPS 60
-  gen <- randomIO
-  x <- loadRenderTexture 80 80 w
-  o <- loadRenderTexture 100 100 w
-
-  beginTextureMode x
-  clearBackground gray
-  drawLineEx (Vector2 0 0) (Vector2 80 80) 10 black
-  drawLineEx (Vector2 80 0) (Vector2 0 80) 10 black
-  endTextureMode
-
-  beginTextureMode o
-  clearBackground gray
-  drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
-  endTextureMode
-
-  return $
-    GameState
-      Menu
-      Nothing
-      Nothing
-      emptyBoard
-      X
-      Ongoing
-      (mkStdGen gen)
-      (renderTexture'texture x)
-      (renderTexture'texture o)
-      w
-
 nextPlayer :: Player -> Player
 nextPlayer X = O
 nextPlayer O = X
@@ -307,7 +275,6 @@ play recs_ point = do
   down <- liftIO $ isMouseButtonPressed MouseButtonLeft
   let currentPlayer = playerTurn s
       board' = board s
-      f :: Maybe Int -> Int -> Rectangle -> Maybe Int
       f i idx rec_
         | down && checkCollisionPointRec point rec_ =
             case board' ! idx of
@@ -351,7 +318,7 @@ menu = do
       startRec =
         Rectangle (center - startSize - 30) 490 (startSize + 20) 40
       xRec = Rectangle (center + 20 - 6) (200 - 2) 30 30
-      oRec = Rectangle (center + vsAISize - 6) (200 - 2) 30 30
+      oRec = Rectangle (center + vsAISize - 6) 198 30 30
       clickUpdates = do
         updateGameStateWhenClicked
           <$> ZipList [startRec, twoPlayersRec, vsAIRec, xRec, oRec]
@@ -380,6 +347,38 @@ menu = do
   sequence_ clickUpdates
   return s
 
+startup :: IO GameState
+startup = do
+  w <- initWindow screenWidth screenHeight "tic-tac-toe"
+  setTargetFPS 60
+  gen <- randomIO
+  x <- loadRenderTexture 80 80 w
+  o <- loadRenderTexture 100 100 w
+
+  beginTextureMode x
+  clearBackground gray
+  drawLineEx (Vector2 0 0) (Vector2 80 80) 10 black
+  drawLineEx (Vector2 80 0) (Vector2 0 80) 10 black
+  endTextureMode
+
+  beginTextureMode o
+  clearBackground gray
+  drawRectangleLinesEx (Rectangle 10 10 80 80) 10 black
+  endTextureMode
+
+  return $
+    GameState
+      Menu
+      Nothing
+      Nothing
+      emptyBoard
+      X
+      Ongoing
+      (mkStdGen gen)
+      (renderTexture'texture x)
+      (renderTexture'texture o)
+      w
+
 mainLoop :: GameState -> IO GameState
 mainLoop s =
   drawing
@@ -401,7 +400,7 @@ shouldClose s = do
   z <- fromIntegral <$> measureText "Exit" 30
   let center = inlineCenter 0
       (x, y) = case phase s of
-        Menu -> (inlineCenter z + z - 10, 500 - 10)
+        Menu -> (inlineCenter z + z - 10, 490)
         Game -> (center + 175, 520)
       rec_ = Rectangle x y (z + 20) 40
   drawRectangleRec rec_ red
